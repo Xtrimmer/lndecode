@@ -1,3 +1,5 @@
+const bech32CharValues = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
 function byteArrayToInt(byteArray) {
     var value = 0;
     for (var i = 0; i < byteArray.length; ++i) {
