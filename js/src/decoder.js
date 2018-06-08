@@ -1,4 +1,8 @@
-const bech32CharValues = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+//TODO - A reader MUST check that the signature is valid (see the n tagged field)
+//TODO - Tagged part of type f: the fallback on-chain address should be decoded into an address format
+//TODO - A reader MUST skip over unknown fields, an f field with unknown version, or a p, h, or n field that does not have data_length 52, 52, or 53 respectively.
+//TODO - A reader MUST check that the SHA-2 256 in the h field exactly matches the hashed description.
+//TODO - A reader MUST use the n field to validate the signature instead of performing signature recovery if a valid n field is provided.
 
 function decode(str) {
     let input = str.toLowerCase();
@@ -6,17 +10,17 @@ function decode(str) {
     let humanReadablePart = input.substring(0, splitPosition);
     let data = input.substring(splitPosition + 1, input.length);
     let checksum = data.substring(data.length - 6, data.length);
+    if (!verify_checksum(humanReadablePart, bech32ToFiveBitArray(data))) throw 'Malformed request: checksum invalid';
     data = data.substring(0, data.length - 6);
-    //TODO - if (!verify_checksum(humanReadablePart, data)) throw 'Malformed request: checksum invalid';
     return {
-        "humanReadablePart": decodeHumanReadablePart(humanReadablePart),
-        "data": decodeData(data),
-        "checksum": checksum
+        'human_readable_part': decodeHumanReadablePart(humanReadablePart),
+        'data': decodeData(data),
+        'checksum': checksum
     }
 }
 
 function decodeHumanReadablePart(str) {
-    let prefixes = ["lnbc", "lntb", "lnbcrt"];
+    let prefixes = ['lnbc', 'lntb', 'lnbcrt'];
     let prefix;
     prefixes.forEach(value => {
         if (str.substring(0, value.length) === value) {
@@ -26,22 +30,21 @@ function decodeHumanReadablePart(str) {
     if (prefix == null) throw 'Malformed request: undefined prefix';
     let amount = decodeAmount(str.substring(prefix.length, str.length));
     return {
-        "prefix": prefix,
-        "amount": amount
+        'prefix': prefix,
+        'amount': amount
     }
 }
 
 function decodeData(str) {
     let date32 = str.substring(0, 7);
     let dateEpoch = bech32ToInt(date32);
-    let date = epochToDate(dateEpoch);
     let signature = str.substring(str.length - 104, str.length);
     let tagData = str.substring(7, str.length - 104);
     let decodedTags = decodeTags(tagData);
     return {
-        "timeStamp": date,
-        "tags": decodedTags,
-        "signature": signature
+        'time_stamp': dateEpoch,
+        'tags': decodedTags,
+        'signature': signature
     }
 }
 
@@ -83,32 +86,63 @@ function extractTags(str) {
         let type = str.charAt(0);
         let dataLength = bech32ToInt(str.substring(1, 3));
         let data = str.substring(3, dataLength + 3);
-        tags.push({"type": type, "length": dataLength, "data": data});
+        tags.push({'type': type, 'length': dataLength, 'data': data});
         str = str.substring(3 + dataLength, str.length);
     }
     return tags;
 }
 
+function decodeFallbackAddress(version, data) {
+    data = FiveBitArrayTo8BitArray(bech32ToFiveBitArray());
+    return S
+
+}
+
 function decodeTag(type, data) {
     switch (type) {
         case 'p':
-            return {"paymentHash": ByteArrayToHexString(FiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))};
+            return {
+                'type': type,
+                'description': 'payment_hash',
+                'value': ByteArrayToHexString(FiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
+            };
         case 'd':
-            return {"description": bech32ToUTF8String(data)};
+            return {
+                'type': type,
+                'description': 'description',
+                'value': bech32ToUTF8String(data)
+            };
         case 'n':
-            return {"payeePublicKey": ByteArrayToHexString(FiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))};
+            return {
+                'type': type,
+                'description': 'payee_public_ey',
+                'value': ByteArrayToHexString(FiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
+            };
         case 'h':
-            return {"descriptionHash": data};
+            return {
+                'type': type,
+                'description': 'description_hash',
+                'value': data};
         case 'x':
-            return {"expiry": bech32ToInt(data)};
+            return {
+                'type': type,
+                'description': 'expiry',
+                'value': bech32ToInt(data)};
         case 'c':
-            return {"minFinalCltvExpiry": bech32ToInt(data)};
+            return {
+                'type': type,
+                'description': 'min_final_cltv_expiry',
+                'value': bech32ToInt(data)};
         case 'f':
             let version = bech32ToFiveBitArray(data.charAt(0))[0];
             data = data.substring(1, data.length);
             return {
-                "version": version,
-                "fallbackAddress": data //TODO this needs to be decoded into an address
+                'type': type,
+                'description': 'fallback_address',
+                'value': {
+                    'version': version,
+                    'fallback_address': data
+                }
             };
         case 'r':
             data = FiveBitArrayTo8BitArray(bech32ToFiveBitArray(data));
@@ -118,11 +152,51 @@ function decodeTag(type, data) {
             let feeProportionalMillionths = data.slice(45, 49);
             let cltvExpiryDelta = data.slice(49, 51);
             return {
-                "pubkey": ByteArrayToHexString(pubkey),
-                "shortChannelId": ByteArrayToHexString(shortChannelId),
-                "feeBaseMsat": byteArrayToInt(feeBaseMsat),
-                "feeProportionalMillionths": byteArrayToInt(feeProportionalMillionths),
-                "cltvExpiryDelta": byteArrayToInt(cltvExpiryDelta)
+                'type': type,
+                'description': 'routing_information',
+                'value': {
+                    'public_key': ByteArrayToHexString(pubkey),
+                    'short_channel_id': ByteArrayToHexString(shortChannelId),
+                    'fee_base_msat': byteArrayToInt(feeBaseMsat),
+                    'fee_proportional_millionths': byteArrayToInt(feeProportionalMillionths),
+                    'cltv_expiry_delta': byteArrayToInt(cltvExpiryDelta)
+                }
             }
     }
+}
+
+function polymod(values) {
+    let GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+    let chk = 1;
+    values.forEach((value) => {
+        let b = (chk >> 25);
+        chk = (chk & 0x1ffffff) << 5 ^ value;
+        for (let i = 0; i < 5; i++) {
+            if (((b >> i) & 1) === 1) {
+                chk ^= GEN[i];
+            } else {
+                chk ^= 0;
+            }
+        }
+    });
+    return chk;
+}
+
+function expand(str) {
+    let array = [];
+    for (let i = 0; i < str.length; i++) {
+        array.push(str.charCodeAt(i) >> 5);
+    }
+    array.push(0);
+    for (let i = 0; i < str.length; i++) {
+        array.push(str.charCodeAt(i) & 31);
+    }
+    return array;
+}
+
+function verify_checksum(hrp, data) {
+    hrp = expand(hrp);
+    let all = hrp.concat(data);
+    let bool = polymod(all);
+    return bool === 1;
 }
