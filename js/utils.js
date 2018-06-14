@@ -60,7 +60,7 @@ function byteArrayToHexString(byteArray) {
     }).join('');
 }
 
-function textToHexString(text) { ///
+function textToHexString(text) {
     let hexString = '';
     for (let i = 0; i < text.length; i++) {
         hexString += text.charCodeAt(i).toString(16);

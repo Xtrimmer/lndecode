@@ -14,7 +14,7 @@ function decode(str) {
     data = data.substring(0, data.length - 6);
     return {
         'human_readable_part': decodeHumanReadablePart(humanReadablePart),
-        'data': decodeData(data, humanReadablePart), ///
+        'data': decodeData(data, humanReadablePart),
         'checksum': checksum
     }
 }
@@ -41,14 +41,14 @@ function decodeData(data, humanReadablePart) {
     let signature = data.substring(data.length - 104, data.length);
     let tagData = data.substring(7, data.length - 104);
     let decodedTags = decodeTags(tagData);
-    let value = bech32ToFiveBitArray(date32 + tagData); ///
-    value = fiveBitArrayTo8BitArray(value, true); ///
-    value = textToHexString(humanReadablePart).concat(byteArrayToHexString(value)); ///
+    let value = bech32ToFiveBitArray(date32 + tagData);
+    value = fiveBitArrayTo8BitArray(value, true);
+    value = textToHexString(humanReadablePart).concat(byteArrayToHexString(value));
     return {
         'time_stamp': dateEpoch,
         'tags': decodedTags,
         'signature': decodeSignature(signature),
-        'signing_data': value ///
+        'signing_data': value
     }
 }
 
