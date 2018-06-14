@@ -14,7 +14,7 @@ function decode(str) {
     data = data.substring(0, data.length - 6);
     return {
         'human_readable_part': decodeHumanReadablePart(humanReadablePart),
-        'data': decodeData(data),
+        'data': decodeData(data, humanReadablePart), ///
         'checksum': checksum
     }
 }
@@ -35,16 +35,32 @@ function decodeHumanReadablePart(str) {
     }
 }
 
-function decodeData(str) {
-    let date32 = str.substring(0, 7);
+function decodeData(data, humanReadablePart) {
+    let date32 = data.substring(0, 7);
     let dateEpoch = bech32ToInt(date32);
-    let signature = str.substring(str.length - 104, str.length);
-    let tagData = str.substring(7, str.length - 104);
+    let signature = data.substring(data.length - 104, data.length);
+    let tagData = data.substring(7, data.length - 104);
     let decodedTags = decodeTags(tagData);
+    let value = bech32ToFiveBitArray(date32 + tagData); ///
+    value = fiveBitArrayTo8BitArray(value, true); ///
+    value = textToHexString(humanReadablePart).concat(byteArrayToHexString(value)); ///
     return {
         'time_stamp': dateEpoch,
         'tags': decodedTags,
-        'signature': signature
+        'signature': decodeSignature(signature),
+        'signing_data': value ///
+    }
+}
+
+function decodeSignature(signature) {
+    let data = fiveBitArrayTo8BitArray(bech32ToFiveBitArray(signature));
+    let recoveryFlag = data[data.length - 1];
+    let r = byteArrayToHexString(data.slice(0, 32));
+    let s = byteArrayToHexString(data.slice(32, data.length - 1));
+    return {
+        'r': r,
+        's': s,
+        'recovery_flag': recoveryFlag
     }
 }
 
@@ -92,19 +108,13 @@ function extractTags(str) {
     return tags;
 }
 
-function decodeFallbackAddress(version, data) {
-    data = FiveBitArrayTo8BitArray(bech32ToFiveBitArray());
-    return S
-
-}
-
 function decodeTag(type, data) {
     switch (type) {
         case 'p':
             return {
                 'type': type,
                 'description': 'payment_hash',
-                'value': ByteArrayToHexString(FiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
+                'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case 'd':
             return {
@@ -116,23 +126,26 @@ function decodeTag(type, data) {
             return {
                 'type': type,
                 'description': 'payee_public_ey',
-                'value': ByteArrayToHexString(FiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
+                'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case 'h':
             return {
                 'type': type,
                 'description': 'description_hash',
-                'value': data};
+                'value': data
+            };
         case 'x':
             return {
                 'type': type,
                 'description': 'expiry',
-                'value': bech32ToInt(data)};
+                'value': bech32ToInt(data)
+            };
         case 'c':
             return {
                 'type': type,
                 'description': 'min_final_cltv_expiry',
-                'value': bech32ToInt(data)};
+                'value': bech32ToInt(data)
+            };
         case 'f':
             let version = bech32ToFiveBitArray(data.charAt(0))[0];
             data = data.substring(1, data.length);
@@ -145,7 +158,7 @@ function decodeTag(type, data) {
                 }
             };
         case 'r':
-            data = FiveBitArrayTo8BitArray(bech32ToFiveBitArray(data));
+            data = fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data));
             let pubkey = data.slice(0, 33);
             let shortChannelId = data.slice(33, 41);
             let feeBaseMsat = data.slice(41, 45);
@@ -155,8 +168,8 @@ function decodeTag(type, data) {
                 'type': type,
                 'description': 'routing_information',
                 'value': {
-                    'public_key': ByteArrayToHexString(pubkey),
-                    'short_channel_id': ByteArrayToHexString(shortChannelId),
+                    'public_key': byteArrayToHexString(pubkey),
+                    'short_channel_id': byteArrayToHexString(shortChannelId),
                     'fee_base_msat': byteArrayToInt(feeBaseMsat),
                     'fee_proportional_millionths': byteArrayToInt(feeProportionalMillionths),
                     'cltv_expiry_delta': byteArrayToInt(cltvExpiryDelta)
