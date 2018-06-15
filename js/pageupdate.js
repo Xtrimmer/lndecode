@@ -63,7 +63,7 @@ function createStandardRow() {
             col.classList.add('pl-4');
             col.classList.add('pl-sm-3');
         }
-        col.innerHTML = arguments[i];
+        col.innerHTML = escapeHtmlText(arguments[i]);
         row.appendChild(col);
     }
     return row;
@@ -79,7 +79,7 @@ function createMultiRow(data, title) {
     let col = document.createElement('div');
     col.classList.add('font-weight-bold');
     col.classList.add('col-sm-4');
-    col.innerHTML = title;
+    col.innerHTML = escapeHtmlText(title);
     row.appendChild(col);
 
     let col2 = document.createElement('div');
@@ -106,7 +106,7 @@ function createMultiRow(data, title) {
         col.classList.add('col-sm-8');
         col.classList.add('pl-5');
         col.classList.add('pl-sm-3');
-        col.innerHTML = values[i];
+        col.innerHTML = escapeHtmlText(values[i]);
         subRow.appendChild(col);
 
         section.appendChild(subRow);
@@ -196,7 +196,7 @@ function jsonToHtml(json) {
     textarea.disabled = true;
     textarea.classList.add('form-control');
     textarea.style.whiteSpace = 'pre';
-    textarea.innerHTML = JSON.stringify(json, null, 4);
+    textarea.innerHTML = escapeHtmlText(JSON.stringify(json, null, 4));
     container.appendChild(textarea);
     return container;
 }
