@@ -33,7 +33,7 @@ function updatePage() {
         let paymentRequest = document.getElementById('request-string').value;
         let decodedRequest = decode(paymentRequest);
         let div = document.getElementById('response');
-        div.innerHTML = '';
+        div.textContent =  '';
         div.appendChild(jsonToHtml(decodedRequest));
         div.classList.remove('hidden');
         div.classList.remove('alert-danger');
@@ -63,7 +63,7 @@ function createStandardRow() {
             col.classList.add('pl-4');
             col.classList.add('pl-sm-3');
         }
-        col.innerHTML = escapeHtmlText(arguments[i]);
+        col.textContent = arguments[i];
         row.appendChild(col);
     }
     return row;
@@ -79,7 +79,7 @@ function createMultiRow(data, title) {
     let col = document.createElement('div');
     col.classList.add('font-weight-bold');
     col.classList.add('col-sm-4');
-    col.innerHTML = escapeHtmlText(title);
+    col.textContent =  title;
     row.appendChild(col);
 
     let col2 = document.createElement('div');
@@ -99,14 +99,14 @@ function createMultiRow(data, title) {
         col.classList.add('font-italic');
         col.classList.add('col-sm-4');
         col.classList.add('pl-4');
-        col.innerHTML = KEY_DESCRIPTIONS.get(keys[i]);
+        col.textContent =  KEY_DESCRIPTIONS.get(keys[i]);
         subRow.appendChild(col);
 
         col = document.createElement('div');
         col.classList.add('col-sm-8');
         col.classList.add('pl-5');
         col.classList.add('pl-sm-3');
-        col.innerHTML = escapeHtmlText(values[i]);
+        col.textContent = values[i];
         subRow.appendChild(col);
 
         section.appendChild(subRow);
@@ -127,7 +127,7 @@ function hasTag(tags, type) {
 function jsonToHtml(json) {
     let container = document.createElement('div');
     let pmtInfo = document.createElement('h4');
-    pmtInfo.innerHTML = 'Payment Info:';
+    pmtInfo.textContent = 'Payment Info:';
     container.appendChild(pmtInfo);
 
     let hrpDiv = document.createElement('div');
@@ -188,7 +188,7 @@ function jsonToHtml(json) {
     container.appendChild(hrpDiv);
 
     let rawData = document.createElement('h4');
-    rawData.innerHTML = 'Raw Data:';
+    rawData.textContent = 'Raw Data:';
     container.appendChild(rawData);
 
     let textarea = document.createElement('textarea');
@@ -196,7 +196,7 @@ function jsonToHtml(json) {
     textarea.disabled = true;
     textarea.classList.add('form-control');
     textarea.style.whiteSpace = 'pre';
-    textarea.innerHTML = escapeHtmlText(JSON.stringify(json, null, 4));
+    textarea.textContent = JSON.stringify(json, null, 4);
     container.appendChild(textarea);
     return container;
 }
