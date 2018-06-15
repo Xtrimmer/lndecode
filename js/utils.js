@@ -72,3 +72,15 @@ function epochToDate(int) {
     let date = new Date(int * 1000);
     return date.toUTCString();
 }
+
+function escapeHtmlText(text){
+    if (typeof text === "string") {
+        text = text.split('&').join('&amp;');
+        text = text.split('<').join('&lt;');
+        text = text.split('>').join('&gt;');
+        text = text.split('"').join('&quot;');
+        text = text.split("'").join('&#x27;');
+        text = text.split('/').join('&#x2F;');
+    }
+    return text;
+}
