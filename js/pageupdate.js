@@ -59,6 +59,7 @@ function createStandardRow() {
             col.classList.add('font-weight-bold');
             col.classList.add('col-sm-4');
         } else {
+            col.classList.add('break-all');
             col.classList.add('col-sm-8');
             col.classList.add('pl-4');
             col.classList.add('pl-sm-3');
@@ -103,6 +104,7 @@ function createMultiRow(data, title) {
         subRow.appendChild(col);
 
         col = document.createElement('div');
+        col.classList.add('break-all');
         col.classList.add('col-sm-8');
         col.classList.add('pl-5');
         col.classList.add('pl-sm-3');
