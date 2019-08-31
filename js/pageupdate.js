@@ -30,7 +30,7 @@ const KEY_DESCRIPTIONS = new Map([
 
 function updatePage() {
     try {
-        let paymentRequest = document.getElementById('request-string').value;
+        let paymentRequest = document.getElementById('request-string').value.trim();
         let decodedRequest = decode(paymentRequest);
         let div = document.getElementById('response');
         div.textContent =  '';
@@ -201,4 +201,27 @@ function jsonToHtml(json) {
     textarea.textContent = JSON.stringify(json, null, 4);
     container.appendChild(textarea);
     return container;
+}
+
+function getUrlVars() {
+    var vars = {};
+    var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
+        vars[key] = value;
+    });
+    return vars;
+}
+
+function getUrlParam(parameter, defaultvalue){
+    var urlparameter = defaultvalue;
+    if(window.location.href.indexOf(parameter) > -1){
+        urlparameter = getUrlVars()[parameter];
+        }
+    return urlparameter;
+}
+
+window.onload = function(){
+    var invoice = getUrlParam('invoice','');
+    var textbox = document.getElementById('request-string');
+    textbox.value = invoice;
+    updatePage();
 }
