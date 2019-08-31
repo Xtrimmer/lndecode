@@ -72,3 +72,7 @@ function epochToDate(int) {
     let date = new Date(int * 1000);
     return date.toUTCString();
 }
+
+function isEmptyOrSpaces(str){
+    return str === null || str.match(/^ *$/) !== null;
+}

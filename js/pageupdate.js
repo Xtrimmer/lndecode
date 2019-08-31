@@ -223,5 +223,7 @@ window.onload = function(){
     var invoice = getUrlParam('invoice','');
     var textbox = document.getElementById('request-string');
     textbox.value = invoice;
-    updatePage();
+    if(!isEmptyOrSpaces(invoice)){
+        updatePage();
+    }  
 }
