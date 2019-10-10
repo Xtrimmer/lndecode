@@ -3,7 +3,8 @@ document.getElementById('decode').onclick = updatePage;
 const NETWORK = new Map([
     ['lnbc', 'bitcoin mainnet'],
     ['lntb', 'bitcoin testnet'],
-    ['lnbcrt', 'bitcoin regtest']
+    ['lnbcrt', 'bitcoin regtest'],
+    ['lnsb', 'bitcoin simnet']
 ]);
 const TAG_TYPES = new Map([
     ['p', 'Payment Hash'],
@@ -139,7 +140,7 @@ function jsonToHtml(json) {
 
     let amount = json.human_readable_part.amount / 100000000000;
     amount = Number.isNaN(amount) ? 'any payment amount' : amount;
-    row = createStandardRow('Amount', amount + ' BTC');
+    row = createStandardRow('Amount', toFixed(amount) + ' BTC');
     hrpDiv.appendChild(row);
 
     row = createStandardRow('Date', epochToDate(json.data.time_stamp));
