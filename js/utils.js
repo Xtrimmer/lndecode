@@ -60,6 +60,12 @@ function byteArrayToHexString(byteArray) {
     }).join('');
 }
 
+function bech32ToBinaryString(byteArray) {
+    return Array.prototype.map.call(byteArray, function (byte) {
+        return ('000000' + byte.toString(2)).slice(-5);
+    }).join('');
+}
+
 function textToHexString(text) {
     let hexString = '';
     for (let i = 0; i < text.length; i++) {

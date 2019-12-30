@@ -125,6 +125,14 @@ function decodeTag(type, length, data) {
                 'description': 'payment_hash',
                 'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
+        case 's':
+            if (length !== 52) break; // A reader MUST skip over a 's' field that does not have data_length 52
+            return {
+                'type': type,
+                'length': length,
+                'description': 'payment_secret',
+                'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
+            };
         case 'd':
             return {
                 'type': type,
@@ -193,6 +201,13 @@ function decodeTag(type, length, data) {
                     'fee_proportional_millionths': byteArrayToInt(feeProportionalMillionths),
                     'cltv_expiry_delta': byteArrayToInt(cltvExpiryDelta)
                 }
+            };
+        case '9':
+            return {
+                'type': type,
+                'length': length,
+                'description': 'feature_bits',
+                'value': bech32ToBinaryString(bech32ToFiveBitArray(data))
             };
         default:
         // reader MUST skip over unknown fields

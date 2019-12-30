@@ -8,13 +8,15 @@ const NETWORK = new Map([
 ]);
 const TAG_TYPES = new Map([
     ['p', 'Payment Hash'],
+    ['s', 'Payment Secret'],
     ['d', 'Description'],
     ['n', 'Destination'],
     ['h', 'Description Hash'],
     ['x', 'Expiration Time'],
     ['c', 'Min Final CLTV Expiry'],
     ['f', 'Fallback On-Chain Address'],
-    ['r', 'Routing Info']
+    ['r', 'Routing Info'],
+    ['9', 'Feature Bits']
 ]);
 const KEY_DESCRIPTIONS = new Map([
     ['version', 'Version'],
@@ -159,10 +161,12 @@ function jsonToHtml(json) {
                 hrpDiv.appendChild(row);
                 break;
             case 'p':
+            case 's':
             case 'd':
             case 'n':
             case 'h':
             case 'c':
+            case '9':
                 row = createStandardRow(TAG_TYPES.get(tag.type), tag.value);
                 hrpDiv.appendChild(row);
                 break;
