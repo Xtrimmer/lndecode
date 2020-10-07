@@ -100,7 +100,7 @@ function decodeTags(tagData) {
     let tags = extractTags(tagData);
     let decodedTags = [];
     tags.forEach(value => decodedTags.push(decodeTag(value.type, value.length, value.data)));
-    return decodedTags;
+    return decodedTags.filter(t => t !== undefined);
 }
 
 function extractTags(str) {
