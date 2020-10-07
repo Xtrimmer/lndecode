@@ -100,3 +100,5 @@ function toFixed(x) {
     }
     return x;
 }
+
+function isDigit(str) { return str >= '0' && str <= '9' }

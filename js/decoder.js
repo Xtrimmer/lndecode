@@ -65,8 +65,12 @@ function decodeSignature(signature) {
 }
 
 function decodeAmount(str) {
-    let multiplier = str.charAt(str.length - 1);
-    let amount = str.substring(0, str.length - 1);
+    if (str.length == 0)
+    {
+        return 'Any amount' // A reader SHOULD indicate if amount is unspecified
+    }
+    let multiplier = isDigit(str.charAt(str.length - 1)) ? '-' : str.charAt(str.length - 1);
+    let amount = multiplier === '-' ? str : str.substring(0, str.length - 1);
     if (amount.substring(0, 1) === '0') {
         throw 'Malformed request: amount cannot contain leading zeros';
     }
@@ -76,8 +80,6 @@ function decodeAmount(str) {
     }
 
     switch (multiplier) {
-        case '':
-            return 'Any amount'; // A reader SHOULD indicate if amount is unspecified
         case 'p':
             return amount / 10;
         case 'n':
@@ -86,6 +88,8 @@ function decodeAmount(str) {
             return amount * 100000;
         case 'm':
             return amount * 100000000;
+        case '-':
+            return amount * 100000000000;
         default:
             // A reader SHOULD fail if amount is followed by anything except a defined multiplier.
             throw 'Malformed request: undefined amount multiplier';
