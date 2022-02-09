@@ -4,7 +4,8 @@ const NETWORK = new Map([
     ['lnbc', 'bitcoin mainnet'],
     ['lntb', 'bitcoin testnet'],
     ['lnbcrt', 'bitcoin regtest'],
-    ['lnsb', 'bitcoin simnet']
+    ['lnsb', 'bitcoin simnet'],
+    ['lntbs', 'bitcoin signet']
 ]);
 const TAG_TYPES = new Map([
     ['p', 'Payment Hash'],
