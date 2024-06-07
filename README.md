@@ -2,7 +2,7 @@
 
 For decoding lightning network payment requests as defined in [BOLT #11](https://github.com/lightningnetwork/lightning-rfc/blob/master/11-payment-encoding.md).
 
-Go to https://lndecode.com/, enter a Lightning Payment Request string into the text box, and push the Decode button to see the result.
+Go to https://lndecode.com/, enter a Lightning Payment Request string into the text box.
 
 Example request string:
 ```
