@@ -1,4 +1,5 @@
-document.getElementById('decode').onclick = updatePage;
+const textarea = document.getElementById('request-string');
+textarea.addEventListener('input', updatePage);
 
 const NETWORK = new Map([
     ['lnbc', 'bitcoin mainnet'],
