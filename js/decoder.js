@@ -4,13 +4,17 @@
 //TODO - A reader MUST use the n field to validate the signature instead of performing signature recovery if a valid n field is provided.
 
 function decode(paymentRequest) {
-    let input = paymentRequest.toLowerCase();
+    if (typeof paymentRequest !== 'string') {
+        throw new Error('Invalid input: payment request must be a string');
+    }
+
+    let input = paymentRequest.replace(/\s+/g, '').toLowerCase();
     let splitPosition = input.lastIndexOf('1');
     let humanReadablePart = input.substring(0, splitPosition);
     let data = input.substring(splitPosition + 1, input.length - 6);
     let checksum = input.substring(input.length - 6, input.length);
     if (!verify_checksum(humanReadablePart, bech32ToFiveBitArray(data + checksum))) {
-        throw 'Malformed request: checksum is incorrect'; // A reader MUST fail if the checksum is incorrect.
+        throw new Error('Malformed request: checksum is incorrect'); // A reader MUST fail if the checksum is incorrect.
     }
     return {
         'human_readable_part': decodeHumanReadablePart(humanReadablePart),
@@ -27,7 +31,7 @@ function decodeHumanReadablePart(humanReadablePart) {
             prefix = value;
         }
     });
-    if (prefix == null) throw 'Malformed request: unknown prefix'; // A reader MUST fail if it does not understand the prefix.
+    if (prefix == null) throw new Error('Malformed request: unknown prefix'); // A reader MUST fail if it does not understand the prefix.
     let amount = decodeAmount(humanReadablePart.substring(prefix.length, humanReadablePart.length));
     return {
         'prefix': prefix,
@@ -72,11 +76,11 @@ function decodeAmount(str) {
     let multiplier = isDigit(str.charAt(str.length - 1)) ? '-' : str.charAt(str.length - 1);
     let amount = multiplier === '-' ? str : str.substring(0, str.length - 1);
     if (amount.substring(0, 1) === '0') {
-        throw 'Malformed request: amount cannot contain leading zeros';
+        throw new Error('Malformed request: amount cannot contain leading zeros');
     }
     amount = Number(amount);
     if (amount < 0 || !Number.isInteger(amount)) {
-        throw 'Malformed request: amount must be a positive decimal integer'; // A reader SHOULD fail if amount contains a non-digit
+        throw new Error('Malformed request: amount must be a positive decimal integer'); // A reader SHOULD fail if amount contains a non-digit
     }
 
     switch (multiplier) {
@@ -92,7 +96,7 @@ function decodeAmount(str) {
             return amount * 100000000000;
         default:
             // A reader SHOULD fail if amount is followed by anything except a defined multiplier.
-            throw 'Malformed request: undefined amount multiplier';
+            throw new Error('Malformed request: undefined amount multiplier');
     }
 }
 
