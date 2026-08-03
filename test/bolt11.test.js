@@ -12,22 +12,12 @@ const { VALID_VECTORS, INVALID_VECTORS } = require('./vectors.js');
 
 const lndecode = load();
 
-// Invalid vectors whose rule is not enforced yet. These run and are reported as
-// TODO rather than failing the suite, so the gaps stay visible instead of being
-// quietly absent. Remove an entry as soon as the corresponding rule lands.
+// Invalid vectors whose rule is not implemented yet. These run and are reported
+// as TODO rather than failing the suite, so the remaining gaps stay visible.
+// Remove an entry as soon as the corresponding rule lands.
 const NOT_YET_ENFORCED = new Map([
-    ['Same, but adding invalid unknown feature 100',
-        'feature-bit validation not implemented'],
-    ['Malformed bech32 string (mixed case)',
-        'mixed-case rejection not implemented'],
     ['Signature is not recoverable.',
         'signature validation needs secp256k1'],
-    ['String is too short.',
-        'minimum-length validation not implemented'],
-    ['Invalid sub-millisatoshi precision.',
-        'p-multiplier precision rule not implemented'],
-    ['Missing required `s` field.',
-        'payment-secret requirement not implemented'],
     ["Non canonical signature (high-S) with 'n' field defined",
         'low-S enforcement needs secp256k1']
 ]);
@@ -60,9 +50,7 @@ describe('human-readable part', () => {
         assert.doesNotThrow(() => lndecode.decode(upper.invoice));
     });
 
-    test('mixed case is rejected', {
-        todo: 'mixed-case rejection not implemented'
-    }, () => {
+    test('mixed case is rejected', () => {
         const mixed = INVALID_VECTORS.find(v => /mixed case/i.test(v.description));
         assert.ok(mixed, 'spec should contain a mixed-case vector');
         assert.throws(() => lndecode.decode(mixed.invoice), /mixed case/i);
@@ -98,9 +86,7 @@ describe('amount multipliers', () => {
     // Spec: if the multiplier is 'p', the last decimal of amount MUST be 0,
     // because HTLCs are denominated in millisatoshis.
     for (const input of ['1p', '2500000001p', '999p']) {
-        test(`"${input}" is rejected as sub-millisatoshi`, {
-            todo: 'p-multiplier precision rule not implemented'
-        }, () => {
+        test(`"${input}" is rejected as sub-millisatoshi`, () => {
             assert.throws(() => lndecode.decodeAmount(input), /sub-millisatoshi/i);
         });
     }
@@ -115,9 +101,7 @@ describe('amount multipliers', () => {
 });
 
 describe('payment secret', () => {
-    test('an invoice without a valid s field is rejected', {
-        todo: 'payment-secret requirement not implemented'
-    }, () => {
+    test('an invoice without a valid s field is rejected', () => {
         const missing = INVALID_VECTORS.find(v => /Missing required .?s.? field/i.test(v.description));
         assert.ok(missing, 'spec should contain a missing-s vector');
         assert.throws(() => lndecode.decode(missing.invoice), /payment secret/i);
@@ -132,8 +116,10 @@ describe('payment secret', () => {
 });
 
 describe('structural validation', () => {
-    // Negative substring indices clamp to 0, so a truncated invoice currently
-    // decodes into garbage with a fabricated signature rather than being rejected.
+    // The "too short" vector is currently rejected only because it carries no valid
+    // 's' field. There is still no length check, so a truncated invoice that happens
+    // to contain an 's' field would decode into garbage: negative substring indices
+    // clamp to 0 and produce a fabricated signature.
     test('a truncated data part is rejected on length', {
         todo: 'minimum-length validation not implemented'
     }, () => {
@@ -144,9 +130,7 @@ describe('structural validation', () => {
 });
 
 describe('feature bits', () => {
-    test('unknown even bit is rejected', {
-        todo: 'feature-bit validation not implemented'
-    }, () => {
+    test('unknown even bit is rejected', () => {
         const bad = INVALID_VECTORS.find(v => /unknown feature 100/i.test(v.description));
         assert.ok(bad, 'spec should contain an unknown-even-feature vector');
         assert.throws(() => lndecode.decode(bad.invoice), /feature bit/i);

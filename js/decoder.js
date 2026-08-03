@@ -8,7 +8,14 @@ function decode(paymentRequest) {
         throw new Error('Invalid input: payment request must be a string');
     }
 
-    let input = paymentRequest.replace(/\s+/g, '').toLowerCase();
+    let stripped = paymentRequest.replace(/\s+/g, '');
+    // A reader MUST fail if the string is mixed case. All-lower and all-upper are
+    // both valid bech32, so only reject when both cases are present.
+    if (/[a-z]/.test(stripped) && /[A-Z]/.test(stripped)) {
+        throw new Error('Malformed request: mixed case is not allowed');
+    }
+
+    let input = stripped.toLowerCase();
     let splitPosition = input.lastIndexOf('1');
     let humanReadablePart = input.substring(0, splitPosition);
     let data = input.substring(splitPosition + 1, input.length - 6);
@@ -45,6 +52,7 @@ function decodeData(data, humanReadablePart) {
     let signature = data.substring(data.length - 104, data.length);
     let tagData = data.substring(7, data.length - 104);
     let decodedTags = decodeTags(tagData);
+    validateTags(decodedTags);
     let value = bech32ToFiveBitArray(date32 + tagData);
     value = fiveBitArrayTo8BitArray(value, true);
     value = textToHexString(humanReadablePart).concat(byteArrayToHexString(value));
@@ -78,6 +86,12 @@ function decodeAmount(str) {
     if (amount.substring(0, 1) === '0') {
         throw new Error('Malformed request: amount cannot contain leading zeros');
     }
+    // A reader MUST fail if the multiplier is 'p' and the last decimal of amount is
+    // not 0: HTLCs are denominated in millisatoshis, so sub-millisatoshi amounts
+    // cannot be transferred.
+    if (multiplier === 'p' && amount.charAt(amount.length - 1) !== '0') {
+        throw new Error('Malformed request: sub-millisatoshi precision is not allowed');
+    }
     amount = Number(amount);
     if (amount < 0 || !Number.isInteger(amount)) {
         throw new Error('Malformed request: amount must be a positive decimal integer'); // A reader SHOULD fail if amount contains a non-digit
@@ -97,6 +111,36 @@ function decodeAmount(str) {
         default:
             // A reader SHOULD fail if amount is followed by anything except a defined multiplier.
             throw new Error('Malformed request: undefined amount multiplier');
+    }
+}
+
+// Feature bits assigned in BOLT 9, both members of each pair. ASSUMED features are
+// included: older invoices still advertise them and a reader can safely ignore them.
+const KNOWN_FEATURE_BITS = new Set([
+    0, 1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23,
+    24, 25, 26, 27, 28, 29, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+    46, 47, 48, 49, 50, 51, 60, 61, 62, 63, 66, 67
+]);
+
+function validateTags(decodedTags) {
+    // A reader MUST fail if a valid 's' field is not provided.
+    if (!decodedTags.some(tag => tag.type === 's')) {
+        throw new Error('Malformed request: payment secret is required');
+    }
+    let features = decodedTags.find(tag => tag.type === '9');
+    if (features !== undefined) {
+        validateFeatureBits(features.value);
+    }
+}
+
+// The field is big-endian: bit 0 is the least-significant bit of the last group.
+function validateFeatureBits(binaryString) {
+    for (let bit = 0; bit < binaryString.length; bit++) {
+        if (binaryString.charAt(binaryString.length - 1 - bit) !== '1') continue;
+        // A reader MUST ignore unknown odd bits, and MUST fail on unknown even bits.
+        if (bit % 2 === 0 && !KNOWN_FEATURE_BITS.has(bit)) {
+            throw new Error('Malformed request: unknown even feature bit ' + bit);
+        }
     }
 }
 
