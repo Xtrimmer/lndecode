@@ -1,0 +1,11 @@
+{
+  "name": "lndecode",
+  "version": "1.0.0",
+  "description": "Pure JavaScript BOLT 11 Lightning invoice decoder",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "vectors": "node test/extract-vectors.js"
+  }
+}
