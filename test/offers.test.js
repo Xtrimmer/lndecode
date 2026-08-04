@@ -160,25 +160,56 @@ describe('offer vectors rejected while decoding fields', () => {
     }
 });
 
-describe('offer vectors needing semantic validation', () => {
-    // Rejected by rules that span fields rather than by decoding a single field.
+describe('offer semantic rules', () => {
     const SEMANTIC = [
-        'Contains unknown feature 122',
-        'Missing offer_description, but has offer_amount',
-        'Missing offer_amount with offer_currency',
-        'Invalid: zero offer_amount',
-        'Invalid: zero offer_amount with currency',
-        'Missing offer_issuer_id and no offer_path'
+        ['Contains unknown feature 122', /unknown even offer feature bit 122/i],
+        ['Missing offer_description, but has offer_amount', /requires offer_description/i],
+        ['Missing offer_amount with offer_currency', /offer_currency requires offer_amount/i],
+        ['Invalid: zero offer_amount', /greater than zero/i],
+        ['Invalid: zero offer_amount with currency', /greater than zero/i],
+        ['Missing offer_issuer_id and no offer_path', /requires offer_issuer_id or offer_paths/i]
     ];
-    for (const description of SEMANTIC) {
-        test(`rejects: ${description}`, { todo: 'semantic validation not implemented' }, () => {
-            assert.throws(() => lndecode.decodeOffer(vector(description).bolt12));
+    for (const [description, expected] of SEMANTIC) {
+        test(`rejects: ${description}`, () => {
+            const v = vector(description);
+            assert.strictEqual(v.valid, false);
+            assert.throws(() => lndecode.decodeOffer(v.bolt12), expected);
         });
     }
 
+    test('an odd feature bit is still ignored', () => {
+        assert.doesNotThrow(() => decode('with feature'));
+    });
+
+    test('a type outside the offer ranges is rejected', () => {
+        // type 80 with an empty value, then a valid issuer id
+        const records = lndecode.parseTlvStream(lndecode.hexStringToByteArray('5000'));
+        assert.throws(() => lndecode.requireOfferTypeRanges(records), /outside the ranges/i);
+
+        const inRange = lndecode.parseTlvStream(lndecode.hexStringToByteArray('2100'));
+        assert.doesNotThrow(() => lndecode.requireOfferTypeRanges(inRange));
+    });
+});
+
+describe('offer vector coverage', () => {
+    test('every valid vector decodes and every invalid one is rejected but one', () => {
+        const accepted = [];
+        for (const v of OFFER_VECTORS.filter(v => !v.valid)) {
+            try {
+                lndecode.decodeOffer(v.bolt12);
+                accepted.push(v.description);
+            } catch (e) { /* expected */ }
+        }
+        assert.deepStrictEqual(accepted, ['Malformed: invalid offer_issuer_id'],
+            'only the on-curve vector should still be accepted');
+
+        for (const v of OFFER_VECTORS.filter(v => v.valid)) {
+            assert.doesNotThrow(() => lndecode.decodeOffer(v.bolt12), v.description);
+        }
+    });
+
     // offer_issuer_id here is 33 bytes with a valid 0x02 prefix, so it passes the
-    // structural check. Its x coordinate is not on the secp256k1 curve, which takes
-    // modular arithmetic to detect.
+    // structural check. Its x coordinate is not on the secp256k1 curve.
     test('rejects: Malformed: invalid offer_issuer_id', {
         todo: 'on-curve point validation needs secp256k1 field arithmetic'
     }, () => {
