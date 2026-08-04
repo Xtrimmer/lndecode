@@ -15,7 +15,7 @@
     </script>
 
     <title>Decoder for Lightning Payment Requests</title>
-    <meta name="description" content="A tool for decoding lightning network payment requests as defined in BOLT #11.">
+    <meta name="description" content="A tool for decoding lightning network payment requests as defined in BOLT #11, and offers as defined in BOLT #12.">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel='shortcut icon' type='image/x-icon' href='favicon.ico'/>
@@ -44,12 +44,14 @@
     <div class="text-center">
         <h1>Lightning Payment Request Decoder</h1>
         <p>For decoding lightning network payment requests as defined in <a
-                href="https://github.com/lightningnetwork/lightning-rfc/blob/master/11-payment-encoding.md"
-                target="_blank">BOLT #11</a>.</p>
+                href="https://github.com/lightning/bolts/blob/master/11-payment-encoding.md"
+                target="_blank">BOLT #11</a>, and offers as defined in <a
+                href="https://github.com/lightning/bolts/blob/master/12-offer-encoding.md"
+                target="_blank">BOLT #12</a>.</p>
     </div>
     <div class="form-group">
         <label class="col-form-label" for="request-string">Request String:</label>
-        <textarea class="form-control" rows="5" id="request-string" placeholder="Enter request String"></textarea>
+        <textarea class="form-control" rows="5" id="request-string" placeholder="Enter a bolt11 invoice or bolt12 offer"></textarea>
     </div>
     <div class="pt-4">
         <div class="hidden" id="response"></div>
