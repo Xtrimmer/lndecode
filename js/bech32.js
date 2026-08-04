@@ -9,6 +9,10 @@ function requireConsistentCase(str) {
     }
 }
 
+function isBech32Character(ch) {
+    return ch.length === 1 && bech32CharValues.indexOf(ch) !== -1;
+}
+
 function bech32ToFiveBitArray(str) {
     let array = [];
     for (let i = 0; i < str.length; i++) {

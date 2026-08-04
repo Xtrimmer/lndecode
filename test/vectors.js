@@ -2,7 +2,7 @@
 //
 // BOLT 11 test vectors extracted from the spec.
 // Source: https://raw.githubusercontent.com/lightning/bolts/master/11-payment-encoding.md
-// Regenerate: node test/extract-vectors.js [path-to-11-payment-encoding.md]
+// Regenerate: npm run vectors
 //
 // VALID_VECTORS   - a conforming reader MUST decode these.
 // INVALID_VECTORS - a conforming reader MUST reject these.
