@@ -133,7 +133,7 @@ function bolt11Model(decoded, prefix) {
         kind: 'bolt11-invoice',
         prefix: prefix,
         sections: [
-            { title: 'Payment Info', rows: rows },
+            { title: 'Payment Info', emphasis: true, rows: rows },
             { title: 'Invoice Breakdown', rows: breakdownRows(decoded.raw_parts) }
         ],
         jsonTitle: 'Decoded JSON',
@@ -271,7 +271,7 @@ function offerModel(offer) {
         kind: 'bolt12-offer',
         prefix: offer.prefix,
         sections: [
-            { title: 'Offer Info', rows: rows },
+            { title: 'Offer Info', emphasis: true, rows: rows },
             { title: 'Offer Breakdown', rows: offerBreakdownRows(offer) }
         ],
         jsonTitle: 'Decoded JSON',

@@ -103,20 +103,34 @@ function createCard(title) {
     body.classList.add('card-body');
     card.appendChild(body);
 
-    return { card: card, body: body };
+    return { section: card, body: body };
+}
+
+// A green panel with the heading inside it.
+function createHighlight(title) {
+    let panel = document.createElement('div');
+    panel.classList.add('alert');
+    panel.classList.add('alert-success');
+    panel.classList.add('mb-3');
+
+    let heading = document.createElement('h4');
+    heading.textContent = title;
+    panel.appendChild(heading);
+
+    return { section: panel, body: panel };
 }
 
 function renderModel(model) {
     let container = document.createElement('div');
 
     for (const section of model.sections) {
-        let card = createCard(section.title);
+        let rendered = section.emphasis ? createHighlight(section.title) : createCard(section.title);
         for (const row of section.rows) {
-            card.body.appendChild(row.sub === undefined
+            rendered.body.appendChild(row.sub === undefined
                 ? createStandardRow(row.label, row.value)
                 : createMultiRow(row.label, row.sub));
         }
-        container.appendChild(card.card);
+        container.appendChild(rendered.section);
     }
 
     let jsonCard = createCard(model.jsonTitle);
@@ -128,7 +142,7 @@ function renderModel(model) {
     rawBox.style.whiteSpace = 'pre';
     rawBox.textContent = raw;
     jsonCard.body.appendChild(rawBox);
-    container.appendChild(jsonCard.card);
+    container.appendChild(jsonCard.section);
 
     return container;
 }
