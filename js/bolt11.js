@@ -1,7 +1,7 @@
 // BOLT 11 invoice decoding: a six-character bech32 checksum over 5-bit tagged fields.
 //
-//TODO - Tagged part of type f: the fallback on-chain address should be decoded into an address format
-//TODO - A reader MUST check that the SHA-2 256 in the h field exactly matches the hashed description.
+// The description behind an 'h' field travels out of band, so verifying it is a separate
+// call: see descriptionMatchesHash.
 
 const TIMESTAMP_LENGTH = 7;
 const SIGNATURE_LENGTH = 104;
@@ -37,6 +37,16 @@ function decode(paymentRequest) {
         'data': decodedData,
         'checksum': checksum
     }
+}
+
+// Compares an invoice's description_hash against a description supplied by the caller.
+// A reader must check the two match; the description is not carried in the invoice.
+function descriptionMatchesHash(paymentRequest, description) {
+    let hashField = decode(paymentRequest).data.tags.find(tag => tag.type === 'h');
+    if (hashField === undefined) {
+        throw new Error('Invalid input: this request has no description hash');
+    }
+    return hashField.value === byteArrayToHexString(sha256(textToByteArray(description)));
 }
 
 // With an 'n' field the signature must verify against that key and must be low-S.
@@ -87,7 +97,7 @@ function decodeData(data, humanReadablePart) {
     let dateEpoch = bech32ToInt(date32);
     let signature = data.substring(data.length - 104, data.length);
     let tagData = data.substring(7, data.length - 104);
-    let decodedTags = decodeTags(tagData);
+    let decodedTags = decodeTags(tagData, readPrefix(humanReadablePart));
     validateTags(decodedTags);
     let value = bech32ToFiveBitArray(date32 + tagData);
     value = fiveBitArrayTo8BitArray(value, true);
@@ -197,10 +207,10 @@ function validateFeatureBits(binaryString) {
     }
 }
 
-function decodeTags(tagData) {
+function decodeTags(tagData, prefix) {
     let tags = extractTags(tagData);
     let decodedTags = [];
-    tags.forEach(value => decodedTags.push(decodeTag(value.type, value.length, value.data)));
+    tags.forEach(value => decodedTags.push(decodeTag(value.type, value.length, value.data, prefix)));
     return decodedTags.filter(t => t !== undefined);
 }
 
@@ -220,7 +230,7 @@ function extractTags(str) {
     return tags;
 }
 
-function decodeTag(type, length, data) {
+function decodeTag(type, length, data, prefix) {
     switch (type) {
         case 'p':
             if (length !== 52) break; // A reader MUST skip over a 'p' field that does not have data_length 52
@@ -259,7 +269,7 @@ function decodeTag(type, length, data) {
                 'type': type,
                 'length': length,
                 'description': 'description_hash',
-                'value': data
+                'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case 'x':
             return {
@@ -278,14 +288,14 @@ function decodeTag(type, length, data) {
         case 'f':
             let version = bech32ToFiveBitArray(data.charAt(0))[0];
             if (version < 0 || version > 18) break; // a reader MUST skip over an f field with unknown version.
-            data = data.substring(1, data.length);
             return {
                 'type': type,
                 'length': length,
                 'description': 'fallback_address',
                 'value': {
                     'version': version,
-                    'fallback_address': data
+                    'fallback_address': fallbackAddress(version,
+                        bech32ToFiveBitArray(data.substring(1, data.length)), prefix)
                 }
             };
         case 'r':
@@ -314,34 +324,6 @@ function decodeTag(type, length, data) {
     }
 }
 
-function polymod(values) {
-    let GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
-    let chk = 1;
-    values.forEach((value) => {
-        let b = (chk >> 25);
-        chk = (chk & 0x1ffffff) << 5 ^ value;
-        for (let i = 0; i < 5; i++) {
-            if (((b >> i) & 1) === 1) {
-                chk ^= GEN[i];
-            } else {
-                chk ^= 0;
-            }
-        }
-    });
-    return chk;
-}
-
-function expand(str) {
-    let array = [];
-    for (let i = 0; i < str.length; i++) {
-        array.push(str.charCodeAt(i) >> 5);
-    }
-    array.push(0);
-    for (let i = 0; i < str.length; i++) {
-        array.push(str.charCodeAt(i) & 31);
-    }
-    return array;
-}
 
 function verify_checksum(hrp, data) {
     hrp = expand(hrp);
