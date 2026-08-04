@@ -54,6 +54,9 @@ function decodeRequest(request) {
     if (BOLT11_PREFIXES.has(prefix)) {
         return bolt11Model(decode(request), prefix);
     }
+    if (prefix === 'lno') {
+        return offerModel(decodeOffer(request));
+    }
     if (BOLT12_PREFIXES.has(prefix)) {
         throw new Error('Not yet supported: bolt12 ' + BOLT12_PREFIXES.get(prefix) + ' decoding');
     }
@@ -116,5 +119,121 @@ function bolt11Model(decoded, prefix) {
         prefix: prefix,
         sections: [{ title: 'Payment Info:', rows: rows }],
         raw: decoded
+    };
+}
+
+// --- bolt12 offers -----------------------------------------------------------
+
+// Genesis hashes named by the bolt12 test vectors. Anything else renders as hex.
+const CHAIN_NAMES = new Map([
+    ['6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000', 'bitcoin mainnet'],
+    ['43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000', 'bitcoin testnet'],
+    ['1466275836220db2944ca059a3a10ef6fd2ea684b0688d2c379296888a206003', 'liquidv1']
+]);
+
+function offerField(offer, name) {
+    let field = offer.fields.find(entry => entry.name === name);
+    return field === undefined ? undefined : field.value;
+}
+
+// Returns the bit numbers set in a feature bitmap, most significant first.
+function setFeatureBits(hex) {
+    let bytes = hexStringToByteArray(hex);
+    let bits = [];
+    for (let bit = bytes.length * 8 - 1; bit >= 0; bit--) {
+        if ((bytes[bytes.length - 1 - (bit >> 3)] >> (bit % 8)) & 1) bits.push(bit);
+    }
+    return bits;
+}
+
+function firstNodeIdText(firstNodeId) {
+    if (firstNodeId.node_id !== undefined) return firstNodeId.node_id;
+    return 'short channel id ' + firstNodeId.short_channel_id + ', direction ' + firstNodeId.direction;
+}
+
+function blindedPathRow(path, index) {
+    let sub = [
+        { label: 'First Node Id', value: firstNodeIdText(path.first_node_id) },
+        { label: 'Path Key', value: path.first_path_key }
+    ];
+    path.path.forEach((hop, hopIndex) => {
+        sub.push({ label: 'Hop ' + (hopIndex + 1) + ' Blinded Id', value: hop.blinded_node_id });
+    });
+    return { label: 'Blinded Path ' + (index + 1), sub: sub };
+}
+
+function offerModel(offer) {
+    let rows = [];
+
+    let chains = offerField(offer, 'offer_chains');
+    rows.push({
+        label: 'Chains',
+        value: chains === undefined
+            ? 'bitcoin mainnet'
+            : chains.map(hash => CHAIN_NAMES.get(hash) || hash).join(', ')
+    });
+
+    // A currency amount is in that currency's ISO 4217 minor unit, so 10000 USD is
+    // 100.00 dollars. The exponent is not carried in the offer.
+    let amount = offerField(offer, 'offer_amount');
+    let currency = offerField(offer, 'offer_currency');
+    rows.push({
+        label: 'Amount',
+        value: amount === undefined
+            ? 'any amount'
+            : currency === undefined
+                ? amount.toString() + ' msat'
+                : amount.toString() + ' ' + currency + ' (minor units)'
+    });
+
+    let description = offerField(offer, 'offer_description');
+    if (description !== undefined) {
+        rows.push({ label: 'Description', value: description });
+    }
+
+    let issuer = offerField(offer, 'offer_issuer');
+    if (issuer !== undefined) {
+        rows.push({ label: 'Issuer', value: issuer });
+    }
+
+    let expiry = offerField(offer, 'offer_absolute_expiry');
+    if (expiry !== undefined) {
+        rows.push({ label: 'Expires', value: epochToDate(Number(expiry)) });
+    }
+
+    let quantityMax = offerField(offer, 'offer_quantity_max');
+    if (quantityMax !== undefined) {
+        rows.push({
+            label: 'Quantity Max',
+            value: quantityMax === 0n ? 'unlimited' : quantityMax.toString()
+        });
+    }
+
+    let features = offerField(offer, 'offer_features');
+    if (features !== undefined) {
+        let bits = setFeatureBits(features);
+        rows.push({ label: 'Feature Bits', value: bits.length === 0 ? 'none' : bits.join(', ') });
+    }
+
+    let metadata = offerField(offer, 'offer_metadata');
+    if (metadata !== undefined) {
+        rows.push({ label: 'Metadata', value: metadata });
+    }
+
+    let paths = offerField(offer, 'offer_paths');
+    if (paths !== undefined) {
+        paths.forEach((path, index) => rows.push(blindedPathRow(path, index)));
+    }
+
+    let issuerId = offerField(offer, 'offer_issuer_id');
+    if (issuerId !== undefined) {
+        rows.push({ label: 'Issuer Id', value: issuerId });
+    }
+
+    return {
+        kind: 'bolt12-offer',
+        prefix: offer.prefix,
+        sections: [{ title: 'Offer Info:', rows: rows }],
+        raw: offer
     };
 }
