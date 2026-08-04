@@ -17,6 +17,21 @@ function hexStringToByteArray(hex) {
     return bytes;
 }
 
+// Encodes text as UTF-8 bytes.
+function textToByteArray(text) {
+    let escaped = encodeURIComponent(text);
+    let bytes = [];
+    for (let i = 0; i < escaped.length; i++) {
+        if (escaped.charAt(i) === '%') {
+            bytes.push(parseInt(escaped.substring(i + 1, i + 3), 16));
+            i += 2;
+        } else {
+            bytes.push(escaped.charCodeAt(i));
+        }
+    }
+    return bytes;
+}
+
 // Decodes bytes as UTF-8. Throws on a sequence that is not valid UTF-8.
 function bytesToUtf8String(bytes) {
     let escaped = '';

@@ -59,3 +59,32 @@ function readPrefix(str) {
     if (match === null) throw new Error('Malformed request: no human-readable prefix');
     return match[0];
 }
+
+function polymod(values) {
+    let GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+    let chk = 1;
+    values.forEach((value) => {
+        let b = (chk >> 25);
+        chk = (chk & 0x1ffffff) << 5 ^ value;
+        for (let i = 0; i < 5; i++) {
+            if (((b >> i) & 1) === 1) {
+                chk ^= GEN[i];
+            } else {
+                chk ^= 0;
+            }
+        }
+    });
+    return chk;
+}
+
+function expand(str) {
+    let array = [];
+    for (let i = 0; i < str.length; i++) {
+        array.push(str.charCodeAt(i) >> 5);
+    }
+    array.push(0);
+    for (let i = 0; i < str.length; i++) {
+        array.push(str.charCodeAt(i) & 31);
+    }
+    return array;
+}

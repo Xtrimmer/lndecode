@@ -23,16 +23,19 @@ async function fetchText(file) {
 // --- BOLT 11: a blockquote heading followed by a blockquote line holding one long
 // token -----------------------------------------------------------------------
 
+// The blockquote prefix on the invoice line is optional: at least one vector in the
+// spec omits it.
 function collectInvoices(lines) {
     const out = [];
+    let headings = 0;
     let description = '';
     for (const line of lines) {
         const heading = line.match(/^>\s*#+\s*(.+?)\s*$/);
-        if (heading) { description = heading[1]; continue; }
-        const invoice = line.match(/^>\s*([0-9A-Za-z]{40,})\s*$/);
+        if (heading) { description = heading[1]; headings++; continue; }
+        const invoice = line.match(/^>?\s*([0-9A-Za-z]{40,})\s*$/);
         if (invoice) out.push({ description, invoice: invoice[1] });
     }
-    return out;
+    return { vectors: out, headings };
 }
 
 function serialize(name, vectors) {
@@ -52,10 +55,20 @@ async function writeBolt11() {
     const splitAt = lines.findIndex(l => /^#\s*Examples of Invalid Invoices/.test(l));
     if (splitAt === -1) throw new Error('could not locate "Examples of Invalid Invoices" heading');
 
-    const valid = collectInvoices(lines.slice(0, splitAt));
-    const invalid = collectInvoices(lines.slice(splitAt));
+    const validPart = collectInvoices(lines.slice(0, splitAt));
+    const invalidPart = collectInvoices(lines.slice(splitAt));
+    const valid = validPart.vectors;
+    const invalid = invalidPart.vectors;
     if (!valid.length || !invalid.length) {
         throw new Error(`extraction looks wrong: ${valid.length} valid, ${invalid.length} invalid`);
+    }
+    // Every described example should yield an invoice. A shortfall means a vector was
+    // formatted in a way the patterns above do not match.
+    for (const [name, part] of [['valid', validPart], ['invalid', invalidPart]]) {
+        if (part.vectors.length < part.headings) {
+            throw new Error(`${name}: ${part.headings} headings but only ${part.vectors.length} `
+                + `invoices extracted; a vector is being dropped`);
+        }
     }
 
     const header =

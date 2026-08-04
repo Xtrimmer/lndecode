@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SOURCES = ['utils.js', 'bech32.js', 'bytes.js', 'sha256.js', 'vendor/secp256k1.js',
+const SOURCES = ['utils.js', 'bech32.js', 'bytes.js', 'sha256.js', 'vendor/secp256k1.js', 'address.js',
     'bolt11.js', 'bolt12.js', 'dispatch.js'];
 
 function load() {
