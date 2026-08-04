@@ -88,11 +88,6 @@ function createMultiRow(label, subRows) {
     return section;
 }
 
-// Renders BigInt as a string.
-function jsonReplacer(key, value) {
-    return typeof value === 'bigint' ? value.toString() : value;
-}
-
 function renderModel(model) {
     let container = document.createElement('div');
 
@@ -112,7 +107,7 @@ function renderModel(model) {
     }
 
     let rawHeading = document.createElement('h4');
-    rawHeading.textContent = 'Raw Data:';
+    rawHeading.textContent = model.jsonTitle;
     container.appendChild(rawHeading);
 
     let raw = JSON.stringify(model.raw, jsonReplacer, 4);
