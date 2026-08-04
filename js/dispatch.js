@@ -128,17 +128,15 @@ function bolt11Model(decoded, prefix) {
     }
 
     rows.push({ label: 'Signature', sub: subRows(decoded.data.signature) });
-    rows.push({ label: 'Signing Data', value: decoded.data.signing_data });
-    rows.push({ label: 'Checksum', value: decoded.checksum });
 
     return {
         kind: 'bolt11-invoice',
         prefix: prefix,
         sections: [
-            { title: 'Payment Info:', rows: rows },
-            { title: 'Raw Data:', rows: breakdownRows(decoded.raw_parts) }
+            { title: 'Payment Info', rows: rows },
+            { title: 'Invoice Breakdown', rows: breakdownRows(decoded.raw_parts) }
         ],
-        jsonTitle: 'Decoded JSON:',
+        jsonTitle: 'Decoded JSON',
         raw: decoded
     };
 }
@@ -273,10 +271,10 @@ function offerModel(offer) {
         kind: 'bolt12-offer',
         prefix: offer.prefix,
         sections: [
-            { title: 'Offer Info:', rows: rows },
-            { title: 'Raw Data:', rows: offerBreakdownRows(offer) }
+            { title: 'Offer Info', rows: rows },
+            { title: 'Offer Breakdown', rows: offerBreakdownRows(offer) }
         ],
-        jsonTitle: 'Decoded JSON:',
+        jsonTitle: 'Decoded JSON',
         raw: offer
     };
 }

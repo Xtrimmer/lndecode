@@ -11,9 +11,8 @@ function updatePage() {
         div.textContent = '';
         div.appendChild(renderModel(model));
         div.classList.remove('hidden');
+        div.classList.remove('alert');
         div.classList.remove('alert-danger');
-        div.classList.add('alert');
-        div.classList.add('alert-success');
     } catch (e) {
         div.innerHTML = '<strong>Uh-Oh!</strong> Something is not quite right with this request.<br>' + e.toString();
         div.classList.remove('hidden');
@@ -88,28 +87,39 @@ function createMultiRow(label, subRows) {
     return section;
 }
 
+// A card with a shaded header, so each section reads as its own block.
+function createCard(title) {
+    let card = document.createElement('div');
+    card.classList.add('card');
+    card.classList.add('mb-3');
+
+    let header = document.createElement('div');
+    header.classList.add('card-header');
+    header.classList.add('font-weight-bold');
+    header.textContent = title;
+    card.appendChild(header);
+
+    let body = document.createElement('div');
+    body.classList.add('card-body');
+    card.appendChild(body);
+
+    return { card: card, body: body };
+}
+
 function renderModel(model) {
     let container = document.createElement('div');
 
     for (const section of model.sections) {
-        let heading = document.createElement('h4');
-        heading.textContent = section.title;
-        container.appendChild(heading);
-
-        let body = document.createElement('div');
-        body.classList.add('mb-4');
+        let card = createCard(section.title);
         for (const row of section.rows) {
-            body.appendChild(row.sub === undefined
+            card.body.appendChild(row.sub === undefined
                 ? createStandardRow(row.label, row.value)
                 : createMultiRow(row.label, row.sub));
         }
-        container.appendChild(body);
+        container.appendChild(card.card);
     }
 
-    let rawHeading = document.createElement('h4');
-    rawHeading.textContent = model.jsonTitle;
-    container.appendChild(rawHeading);
-
+    let jsonCard = createCard(model.jsonTitle);
     let raw = JSON.stringify(model.raw, jsonReplacer, 4);
     let rawBox = document.createElement('textarea');
     rawBox.rows = raw.split(/\r\n|\r|\n/).length;
@@ -117,7 +127,8 @@ function renderModel(model) {
     rawBox.classList.add('form-control');
     rawBox.style.whiteSpace = 'pre';
     rawBox.textContent = raw;
-    container.appendChild(rawBox);
+    jsonCard.body.appendChild(rawBox);
+    container.appendChild(jsonCard.card);
 
     return container;
 }

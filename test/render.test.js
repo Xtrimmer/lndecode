@@ -47,7 +47,7 @@ describe('offer model', () => {
         for (const v of OFFER_VECTORS.filter(v => v.valid)) {
             const model = lndecode.decodeRequest(v.bolt12);
             assert.deepStrictEqual(Array.from(model.sections.map(s => s.title)),
-                ['Offer Info:', 'Raw Data:']);
+                ['Offer Info', 'Offer Breakdown']);
             assert.ok(model.sections[0].rows.length > 0, v.description);
         }
     });
@@ -231,11 +231,11 @@ describe('raw data breakdown', () => {
         }
     });
 
-    test('an invoice model has three headings, ending with the json', () => {
+    test('an invoice model has two row sections plus the json', () => {
         const model = lndecode.decodeRequest(VALID_VECTORS[0].invoice);
         assert.deepStrictEqual(Array.from(model.sections.map(s => s.title)),
-            ['Payment Info:', 'Raw Data:']);
-        assert.strictEqual(model.jsonTitle, 'Decoded JSON:');
+            ['Payment Info', 'Invoice Breakdown']);
+        assert.strictEqual(model.jsonTitle, 'Decoded JSON');
     });
 });
 
@@ -252,6 +252,7 @@ describe('decoded json section', () => {
         const text = json(VALID_VECTORS.find(v => v.description.includes('(P2SH) address')).invoice);
         for (const key of ['human_readable_part', 'amount', 'time_stamp', 'tags', 'signature',
             'signing_data', 'checksum']) {
+            // all still in the json, though checksum and signing_data left Payment Info
             assert.ok(text.includes(key), `json should still contain ${key}`);
         }
     });
@@ -259,5 +260,49 @@ describe('decoded json section', () => {
     test('renders a BigInt offer amount as a string', () => {
         const offer = OFFER_VECTORS.find(v => v.valid && v.description.includes('with amount'));
         assert.ok(json(offer.bolt12).includes('"10000"'));
+    });
+});
+
+describe('sections do not repeat each other', () => {
+    function flatten(rows) {
+        const out = [];
+        for (const row of rows) {
+            if (row.sub) row.sub.forEach(sub => out.push([`${row.label} / ${sub.label}`, String(sub.value)]));
+            else out.push([row.label, String(row.value)]);
+        }
+        return out;
+    }
+
+    function duplicates(input) {
+        const model = lndecode.decodeRequest(input);
+        const rawValues = new Set(flatten(model.sections[1].rows).map(([, value]) => value));
+        // Short values collide by chance; a shared long string is real repetition.
+        return flatten(model.sections[0].rows)
+            .filter(([, value]) => value.length > 2 && rawValues.has(value))
+            .map(([label]) => label);
+    }
+
+    test('no invoice repeats a value between its two sections', () => {
+        for (const v of VALID_VECTORS) {
+            assert.deepStrictEqual(duplicates(v.invoice), [], v.description);
+        }
+    });
+
+    test('checksum and signing data are gone from Payment Info but kept in the json', () => {
+        const model = lndecode.decodeRequest(VALID_VECTORS[0].invoice);
+        const labels = model.sections[0].rows.map(row => row.label);
+        assert.ok(!labels.includes('Checksum'));
+        assert.ok(!labels.includes('Signing Data'));
+
+        const json = JSON.stringify(model.raw, lndecode.jsonReplacer, 4);
+        assert.ok(json.includes('checksum'), 'checksum should remain in the json');
+        assert.ok(json.includes('signing_data'), 'signing_data should remain in the json');
+    });
+
+    test('the checksum is still shown, in the breakdown', () => {
+        const model = lndecode.decodeRequest(VALID_VECTORS[0].invoice);
+        const checksum = model.sections[1].rows.find(row => row.label === 'checksum');
+        assert.ok(checksum, 'the breakdown should carry the checksum');
+        assert.strictEqual(checksum.value, model.raw.checksum);
     });
 });
