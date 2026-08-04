@@ -1,27 +1,29 @@
-// Regenerates test/vectors.js from the BOLT 11 spec markdown.
+// Re-vendors every test vector from the lightning/bolts repository.
 //
-//   node test/extract-vectors.js                    # fetch latest from lightning/bolts
-//   node test/extract-vectors.js path/to/11-payment-encoding.md
+//   npm run vectors
 //
-// Vectors are vendored rather than fetched at test time so the suite runs
-// offline and deterministically.
+// Writes:
+//   test/vectors.js                     BOLT 11 invoices, parsed out of the spec prose
+//   test/vectors/format-string.json     BOLT 12 string format
+//   test/vectors/offers.json            BOLT 12 offers
+//   test/vectors/bigsize.json           BigSize, from a fenced block in BOLT 1
 
 const fs = require('fs');
 const path = require('path');
 
-const SPEC_URL = 'https://raw.githubusercontent.com/lightning/bolts/master/11-payment-encoding.md';
-const OUT = path.join(__dirname, 'vectors.js');
+const RAW = 'https://raw.githubusercontent.com/lightning/bolts/master/';
+const OUT_DIR = path.join(__dirname, 'vectors');
 
-async function readSpec(arg) {
-    if (arg) return { text: fs.readFileSync(arg, 'utf8'), source: arg };
-    const res = await fetch(SPEC_URL);
-    if (!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText}`);
-    return { text: await res.text(), source: SPEC_URL };
+async function fetchText(file) {
+    const res = await fetch(RAW + file);
+    if (!res.ok) throw new Error(`fetch ${file} failed: ${res.status} ${res.statusText}`);
+    return res.text();
 }
 
-// Invoices appear as a blockquote line holding a single bech32-ish token,
-// preceded by a blockquote heading that describes them.
-function collect(lines) {
+// --- BOLT 11: a blockquote heading followed by a blockquote line holding one long
+// token -----------------------------------------------------------------------
+
+function collectInvoices(lines) {
     const out = [];
     let description = '';
     for (const line of lines) {
@@ -43,17 +45,15 @@ function serialize(name, vectors) {
     return `const ${name} = [\n${body}\n];\n`;
 }
 
-(async () => {
-    const arg = process.argv[2];
-    const { text, source } = await readSpec(arg);
-    const lines = text.split('\n');
+async function writeBolt11() {
+    const source = '11-payment-encoding.md';
+    const lines = (await fetchText(source)).split('\n');
 
     const splitAt = lines.findIndex(l => /^#\s*Examples of Invalid Invoices/.test(l));
     if (splitAt === -1) throw new Error('could not locate "Examples of Invalid Invoices" heading');
 
-    const valid = collect(lines.slice(0, splitAt));
-    const invalid = collect(lines.slice(splitAt));
-
+    const valid = collectInvoices(lines.slice(0, splitAt));
+    const invalid = collectInvoices(lines.slice(splitAt));
     if (!valid.length || !invalid.length) {
         throw new Error(`extraction looks wrong: ${valid.length} valid, ${invalid.length} invalid`);
     }
@@ -62,18 +62,56 @@ function serialize(name, vectors) {
         `// GENERATED FILE - do not edit by hand.\n` +
         `//\n` +
         `// BOLT 11 test vectors extracted from the spec.\n` +
-        `// Source: ${source}\n` +
-        `// Regenerate: node test/extract-vectors.js [path-to-11-payment-encoding.md]\n` +
+        `// Source: ${RAW}${source}\n` +
+        `// Regenerate: npm run vectors\n` +
         `//\n` +
         `// VALID_VECTORS   - a conforming reader MUST decode these.\n` +
         `// INVALID_VECTORS - a conforming reader MUST reject these.\n\n`;
 
-    fs.writeFileSync(OUT,
+    fs.writeFileSync(path.join(__dirname, 'vectors.js'),
         header +
         serialize('VALID_VECTORS', valid) + '\n' +
         serialize('INVALID_VECTORS', invalid) + '\n' +
         `module.exports = { VALID_VECTORS, INVALID_VECTORS };\n`
     );
+    return `vectors.js: ${valid.length} valid, ${invalid.length} invalid`;
+}
 
-    console.log(`wrote ${path.relative(process.cwd(), OUT)}: ${valid.length} valid, ${invalid.length} invalid`);
+// --- BOLT 12: vendored verbatim ---------------------------------------------
+
+async function writeJson(source, outName, expected) {
+    const parsed = JSON.parse(await fetchText(source));
+    if (!Array.isArray(parsed) || parsed.length < expected) {
+        throw new Error(`${source} looks wrong: ${parsed.length} entries, expected at least ${expected}`);
+    }
+    fs.writeFileSync(path.join(OUT_DIR, outName), JSON.stringify(parsed, null, 2) + '\n');
+    return `${outName}: ${parsed.length} vectors`;
+}
+
+// --- BigSize: a fenced json block inside BOLT 1 Appendix A ------------------
+
+async function writeBigSize() {
+    const source = '01-messaging.md';
+    const text = await fetchText(source);
+    const appendix = text.indexOf('## Appendix A: BigSize Test Vectors');
+    if (appendix === -1) throw new Error('could not locate BigSize appendix');
+
+    // Each fenced json block in the appendix is one suite (decoding, then encoding).
+    const blocks = [...text.slice(appendix).matchAll(/```json\n([\s\S]*?)```/g)].map(m => JSON.parse(m[1]));
+    if (!blocks.length) throw new Error('no fenced json blocks in the BigSize appendix');
+
+    const merged = [].concat(...blocks);
+    fs.writeFileSync(path.join(OUT_DIR, 'bigsize.json'), JSON.stringify(merged, null, 2) + '\n');
+    return `bigsize.json: ${merged.length} vectors from ${blocks.length} block(s)`;
+}
+
+(async () => {
+    fs.mkdirSync(OUT_DIR, { recursive: true });
+    const results = [
+        await writeBolt11(),
+        await writeJson('bolt12/format-string-test.json', 'format-string.json', 12),
+        await writeJson('bolt12/offers-test.json', 'offers.json', 50),
+        await writeBigSize()
+    ];
+    for (const r of results) console.log('  ' + r);
 })();

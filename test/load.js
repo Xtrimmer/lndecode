@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SOURCES = ['utils.js', 'bech32.js', 'bytes.js', 'bolt11.js', 'dispatch.js'];
+const SOURCES = ['utils.js', 'bech32.js', 'bytes.js', 'bolt11.js', 'bolt12.js', 'dispatch.js'];
 
 function load() {
     const dir = path.join(__dirname, '..', 'js');
