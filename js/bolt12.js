@@ -110,14 +110,20 @@ function parseOfferTlvStream(request) {
 const POINT_LENGTH = 33;
 const CHAIN_HASH_LENGTH = 32;
 
-// Reads a compressed point: 33 bytes prefixed 0x02 or 0x03.
+// Reads a compressed point: 33 bytes prefixed 0x02 or 0x03, lying on the curve.
 function readPoint(reader, what) {
     let bytes = reader.readBytes(POINT_LENGTH, what);
     if (bytes[0] !== 2 && bytes[0] !== 3) {
         throw new Error('Malformed request: ' + what + ' has prefix 0x'
             + ('0' + bytes[0].toString(16)).slice(-2) + ', expected 0x02 or 0x03');
     }
-    return byteArrayToHexString(bytes);
+    let hex = byteArrayToHexString(bytes);
+    try {
+        secp256k1.Point.fromHex(hex);
+    } catch (e) {
+        throw new Error('Malformed request: ' + what + ' is not a point on the secp256k1 curve');
+    }
+    return hex;
 }
 
 // Reads a sciddir_or_pubkey: a direction byte and short channel id when the first byte

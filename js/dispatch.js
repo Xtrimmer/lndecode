@@ -38,7 +38,8 @@ const FIELD_LABELS = new Map([
     ['cltv_expiry_delta', 'CLTV Expiry Delta'],
     ['r', 'R value'],
     ['s', 'S value'],
-    ['recovery_flag', 'Recovery Flag']
+    ['recovery_flag', 'Recovery Flag'],
+    ['payee_public_key', 'Payee Public Key']
 ]);
 
 function decodeRequest(request) {
