@@ -207,8 +207,71 @@ const OFFER_FIELDS = new Map([
     [22n, { name: 'offer_issuer_id', decode: b => decodePointField(b, 'offer_issuer_id') }]
 ]);
 
+// --- Offer validation --------------------------------------------------------
+
+const OFFER_TYPE_RANGES = [[1n, 79n], [1000000000n, 1999999999n]];
+
+// No feature bits are assigned for offers.
+const KNOWN_OFFER_FEATURE_BITS = new Set();
+
+function requireOfferTypeRanges(records) {
+    for (const record of records) {
+        let inRange = OFFER_TYPE_RANGES.some(range => record.type >= range[0] && record.type <= range[1]);
+        if (!inRange) {
+            throw new Error('Malformed request: tlv type ' + record.type
+                + ' is outside the ranges an offer may use');
+        }
+    }
+}
+
+// Throws on an unknown even bit. An unknown odd bit is ignored.
+function validateOfferFeatures(hex) {
+    let bytes = hexStringToByteArray(hex);
+    for (let bit = 0; bit < bytes.length * 8; bit++) {
+        let isSet = (bytes[bytes.length - 1 - (bit >> 3)] >> (bit % 8)) & 1;
+        if (!isSet) continue;
+        if (bit % 2 === 0 && !KNOWN_OFFER_FEATURE_BITS.has(bit)) {
+            throw new Error('Malformed request: unknown even offer feature bit ' + bit);
+        }
+    }
+}
+
+// Applies the offer rules that span more than one field.
+function validateOffer(fields) {
+    let present = name => fields.some(field => field.name === name);
+    let valueOf = name => {
+        let field = fields.find(entry => entry.name === name);
+        return field === undefined ? undefined : field.value;
+    };
+
+    let features = valueOf('offer_features');
+    if (features !== undefined) {
+        validateOfferFeatures(features);
+    }
+
+    let amount = valueOf('offer_amount');
+    if (amount !== undefined) {
+        if (amount === 0n) {
+            throw new Error('Malformed request: offer_amount must be greater than zero');
+        }
+        if (!present('offer_description')) {
+            throw new Error('Malformed request: offer_amount requires offer_description');
+        }
+    }
+
+    if (present('offer_currency') && amount === undefined) {
+        throw new Error('Malformed request: offer_currency requires offer_amount');
+    }
+
+    if (!present('offer_issuer_id') && !present('offer_paths')) {
+        throw new Error('Malformed request: an offer requires offer_issuer_id or offer_paths');
+    }
+}
+
 function decodeOffer(request) {
     let parsed = parseOfferTlvStream(request);
+    requireOfferTypeRanges(parsed.records);
+
     let fields = [];
     for (const record of parsed.records) {
         let field = OFFER_FIELDS.get(record.type);
@@ -220,5 +283,6 @@ function decodeOffer(request) {
             value: field.decode(record.value)
         });
     }
+    validateOffer(fields);
     return { prefix: parsed.prefix, fields: fields };
 }
