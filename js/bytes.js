@@ -17,6 +17,19 @@ function hexStringToByteArray(hex) {
     return bytes;
 }
 
+// Decodes bytes as UTF-8. Throws on a sequence that is not valid UTF-8.
+function bytesToUtf8String(bytes) {
+    let escaped = '';
+    for (const byte of bytes) {
+        escaped += '%' + ('0' + byte.toString(16)).slice(-2);
+    }
+    try {
+        return decodeURIComponent(escaped);
+    } catch (e) {
+        throw new Error('Malformed request: invalid UTF-8');
+    }
+}
+
 function textToHexString(text) {
     let hexString = '';
     for (let i = 0; i < text.length; i++) {
@@ -42,6 +55,12 @@ function byteReader(bytes) {
     function readByte(what) {
         requireAvailable(1, what);
         return bytes[offset++];
+    }
+
+    // Returns the next byte without advancing.
+    function peekByte(what) {
+        requireAvailable(1, what);
+        return bytes[offset];
     }
 
     function readBytes(count, what) {
@@ -92,6 +111,7 @@ function byteReader(bytes) {
     return {
         remaining: remaining,
         readByte: readByte,
+        peekByte: peekByte,
         readBytes: readBytes,
         readUint: readUint,
         readBigSize: readBigSize,

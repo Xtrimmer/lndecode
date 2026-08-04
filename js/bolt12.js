@@ -104,3 +104,121 @@ function parseOfferTlvStream(request) {
     requireUnderstoodTypes(records, OFFER_TLV_TYPES);
     return { prefix: unpacked.prefix, records: records };
 }
+
+// --- Offer fields ------------------------------------------------------------
+
+const POINT_LENGTH = 33;
+const CHAIN_HASH_LENGTH = 32;
+
+// Reads a compressed point: 33 bytes prefixed 0x02 or 0x03.
+function readPoint(reader, what) {
+    let bytes = reader.readBytes(POINT_LENGTH, what);
+    if (bytes[0] !== 2 && bytes[0] !== 3) {
+        throw new Error('Malformed request: ' + what + ' has prefix 0x'
+            + ('0' + bytes[0].toString(16)).slice(-2) + ', expected 0x02 or 0x03');
+    }
+    return byteArrayToHexString(bytes);
+}
+
+// Reads a sciddir_or_pubkey: a direction byte and short channel id when the first byte
+// is 0 or 1, otherwise a point.
+function readSciddirOrPubkey(reader, what) {
+    let kind = reader.peekByte(what);
+    if (kind === 0 || kind === 1) {
+        let bytes = reader.readBytes(1 + 8, what);
+        return {
+            direction: bytes[0],
+            short_channel_id: byteArrayToHexString(bytes.slice(1))
+        };
+    }
+    return { node_id: readPoint(reader, what) };
+}
+
+function readBlindedPath(reader) {
+    let firstNodeId = readSciddirOrPubkey(reader, 'blinded_path first_node_id');
+    let firstPathKey = readPoint(reader, 'blinded_path first_path_key');
+
+    let numHops = reader.readByte('blinded_path num_hops');
+    if (numHops === 0) {
+        throw new Error('Malformed request: blinded_path has zero hops');
+    }
+
+    let hops = [];
+    for (let i = 0; i < numHops; i++) {
+        let blindedNodeId = readPoint(reader, 'blinded_path_hop blinded_node_id');
+        let encryptedLength = Number(reader.readUint(2, 'blinded_path_hop enclen'));
+        hops.push({
+            blinded_node_id: blindedNodeId,
+            encrypted_recipient_data: byteArrayToHexString(
+                reader.readBytes(encryptedLength, 'blinded_path_hop encrypted_recipient_data'))
+        });
+    }
+    return { first_node_id: firstNodeId, first_path_key: firstPathKey, path: hops };
+}
+
+// Splits the value into 32-byte chain hashes. At least one is required.
+function decodeChains(bytes) {
+    if (bytes.length === 0) {
+        throw new Error('Malformed request: offer_chains has no entries');
+    }
+    if (bytes.length % CHAIN_HASH_LENGTH !== 0) {
+        throw new Error('Malformed request: offer_chains length ' + bytes.length
+            + ' is not a multiple of ' + CHAIN_HASH_LENGTH);
+    }
+    let chains = [];
+    for (let i = 0; i < bytes.length; i += CHAIN_HASH_LENGTH) {
+        chains.push(byteArrayToHexString(bytes.slice(i, i + CHAIN_HASH_LENGTH)));
+    }
+    return chains;
+}
+
+function decodeTruncatedUint(bytes, what) {
+    let reader = byteReader(bytes);
+    return reader.readTruncatedUint(bytes.length, what);
+}
+
+function decodePaths(bytes) {
+    let reader = byteReader(bytes);
+    let paths = [];
+    while (reader.remaining() > 0) {
+        paths.push(readBlindedPath(reader));
+    }
+    return paths;
+}
+
+function decodePointField(bytes, what) {
+    let reader = byteReader(bytes);
+    let point = readPoint(reader, what);
+    reader.requireExhausted(what);
+    return point;
+}
+
+const OFFER_FIELDS = new Map([
+    [2n, { name: 'offer_chains', decode: decodeChains }],
+    [4n, { name: 'offer_metadata', decode: byteArrayToHexString }],
+    [6n, { name: 'offer_currency', decode: bytesToUtf8String }],
+    [8n, { name: 'offer_amount', decode: b => decodeTruncatedUint(b, 'offer_amount') }],
+    [10n, { name: 'offer_description', decode: bytesToUtf8String }],
+    [12n, { name: 'offer_features', decode: byteArrayToHexString }],
+    [14n, { name: 'offer_absolute_expiry', decode: b => decodeTruncatedUint(b, 'offer_absolute_expiry') }],
+    [16n, { name: 'offer_paths', decode: decodePaths }],
+    [18n, { name: 'offer_issuer', decode: bytesToUtf8String }],
+    [20n, { name: 'offer_quantity_max', decode: b => decodeTruncatedUint(b, 'offer_quantity_max') }],
+    [22n, { name: 'offer_issuer_id', decode: b => decodePointField(b, 'offer_issuer_id') }]
+]);
+
+function decodeOffer(request) {
+    let parsed = parseOfferTlvStream(request);
+    let fields = [];
+    for (const record of parsed.records) {
+        let field = OFFER_FIELDS.get(record.type);
+        if (field === undefined) continue;
+        fields.push({
+            type: Number(record.type),
+            name: field.name,
+            length: record.length,
+            value: field.decode(record.value)
+        });
+    }
+    return { prefix: parsed.prefix, fields: fields };
+}
