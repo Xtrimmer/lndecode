@@ -1,9 +1,7 @@
 // BOLT 11 invoice decoding: a six-character bech32 checksum over 5-bit tagged fields.
 //
-//TODO - A reader MUST check that the signature is valid (see the n tagged field)
 //TODO - Tagged part of type f: the fallback on-chain address should be decoded into an address format
 //TODO - A reader MUST check that the SHA-2 256 in the h field exactly matches the hashed description.
-//TODO - A reader MUST use the n field to validate the signature instead of performing signature recovery if a valid n field is provided.
 
 const TIMESTAMP_LENGTH = 7;
 const SIGNATURE_LENGTH = 104;
@@ -32,11 +30,40 @@ function decode(paymentRequest) {
     if (!verify_checksum(humanReadablePart, bech32ToFiveBitArray(data + checksum))) {
         throw new Error('Malformed request: checksum is incorrect'); // A reader MUST fail if the checksum is incorrect.
     }
+    let decodedData = decodeData(data, humanReadablePart);
+    verifySignature(decodedData);
     return {
         'human_readable_part': decodeHumanReadablePart(humanReadablePart),
-        'data': decodeData(data, humanReadablePart),
+        'data': decodedData,
         'checksum': checksum
     }
+}
+
+// With an 'n' field the signature must verify against that key and must be low-S.
+// Without one, the key is recovered, and both high-S and low-S are accepted.
+function verifySignature(data) {
+    let hash = new Uint8Array(sha256(hexStringToByteArray(data.signing_data)));
+    let compact = new Uint8Array(hexStringToByteArray(data.signature.r + data.signature.s));
+    let payeeKey = data.tags.find(tag => tag.type === 'n');
+
+    if (payeeKey !== undefined) {
+        let key = new Uint8Array(hexStringToByteArray(payeeKey.value));
+        if (!secp256k1.verify(compact, hash, key, { prehash: false })) {
+            throw new Error('Malformed request: signature does not verify against the payee public key');
+        }
+        data.signature.payee_public_key = payeeKey.value;
+        return;
+    }
+
+    let recoverable = new Uint8Array(
+        [data.signature.recovery_flag].concat(hexStringToByteArray(data.signature.r + data.signature.s)));
+    let recovered;
+    try {
+        recovered = secp256k1.recoverPublicKey(recoverable, hash, { prehash: false });
+    } catch (e) {
+        throw new Error('Malformed request: signature is not recoverable');
+    }
+    data.signature.payee_public_key = byteArrayToHexString(recovered);
 }
 
 function decodeHumanReadablePart(humanReadablePart) {

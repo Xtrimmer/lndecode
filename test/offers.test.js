@@ -192,7 +192,7 @@ describe('offer semantic rules', () => {
 });
 
 describe('offer vector coverage', () => {
-    test('every valid vector decodes and every invalid one is rejected but one', () => {
+    test('every valid vector decodes and every invalid one is rejected', () => {
         const accepted = [];
         for (const v of OFFER_VECTORS.filter(v => !v.valid)) {
             try {
@@ -200,19 +200,16 @@ describe('offer vector coverage', () => {
                 accepted.push(v.description);
             } catch (e) { /* expected */ }
         }
-        assert.deepStrictEqual(accepted, ['Malformed: invalid offer_issuer_id'],
-            'only the on-curve vector should still be accepted');
+        assert.deepStrictEqual(accepted, [], 'every invalid vector should be rejected');
 
         for (const v of OFFER_VECTORS.filter(v => v.valid)) {
             assert.doesNotThrow(() => lndecode.decodeOffer(v.bolt12), v.description);
         }
     });
 
-    // offer_issuer_id here is 33 bytes with a valid 0x02 prefix, so it passes the
-    // structural check. Its x coordinate is not on the secp256k1 curve.
-    test('rejects: Malformed: invalid offer_issuer_id', {
-        todo: 'on-curve point validation needs secp256k1 field arithmetic'
-    }, () => {
-        assert.throws(() => lndecode.decodeOffer(vector('invalid offer_issuer_id').bolt12));
+    // 33 bytes with a valid 0x02 prefix, so only the curve check rejects it.
+    test('rejects: Malformed: invalid offer_issuer_id', () => {
+        assert.throws(() => lndecode.decodeOffer(vector('invalid offer_issuer_id').bolt12),
+            /not a point on the secp256k1 curve/i);
     });
 });

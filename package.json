@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "test": "node --test test/*.test.js",
-    "vectors": "node test/extract-vectors.js"
+    "vectors": "node test/extract-vectors.js",
+    "vendor": "node tools/vendor-secp256k1.js"
   }
 }

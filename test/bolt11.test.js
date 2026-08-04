@@ -12,16 +12,6 @@ const { VALID_VECTORS, INVALID_VECTORS } = require('./vectors.js');
 
 const lndecode = load();
 
-// Invalid vectors whose rule is not implemented yet. These run and are reported
-// as TODO rather than failing the suite, so the remaining gaps stay visible.
-// Remove an entry as soon as the corresponding rule lands.
-const NOT_YET_ENFORCED = new Map([
-    ['Signature is not recoverable.',
-        'signature validation needs secp256k1'],
-    ["Non canonical signature (high-S) with 'n' field defined",
-        'low-S enforcement needs secp256k1']
-]);
-
 describe('valid vectors decode', () => {
     for (const { description, invoice } of VALID_VECTORS) {
         test(description, () => {
@@ -35,9 +25,7 @@ describe('valid vectors decode', () => {
 
 describe('invalid vectors are rejected', () => {
     for (const { description, invoice } of INVALID_VECTORS) {
-        const pending = NOT_YET_ENFORCED.get(description);
-        const options = pending ? { todo: pending } : {};
-        test(description, options, () => {
+        test(description, () => {
             assert.throws(() => lndecode.decode(invoice));
         });
     }
