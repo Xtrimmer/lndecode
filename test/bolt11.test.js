@@ -116,16 +116,57 @@ describe('payment secret', () => {
 });
 
 describe('structural validation', () => {
-    // The "too short" vector is currently rejected only because it carries no valid
-    // 's' field. There is still no length check, so a truncated invoice that happens
-    // to contain an 's' field would decode into garbage: negative substring indices
-    // clamp to 0 and produce a fabricated signature.
-    test('a truncated data part is rejected on length', {
-        todo: 'minimum-length validation not implemented'
-    }, () => {
+    test('a truncated data part is rejected on length', () => {
         const short = INVALID_VECTORS.find(v => /too short/i.test(v.description));
         assert.ok(short, 'spec should contain a too-short vector');
-        assert.throws(() => lndecode.decode(short.invoice), /short|length/i);
+        assert.throws(() => lndecode.decode(short.invoice), /too short/i);
+    });
+
+    test('a data part one character short is rejected', () => {
+        // 7 timestamp + 104 signature is the minimum
+        assert.throws(() => lndecode.decode('lnbc1' + 'q'.repeat(110) + 'qqqqqq'), /too short/i);
+    });
+
+    test('a missing separator is reported as such', () => {
+        assert.throws(() => lndecode.decode('lnbcqqqqqq'), /missing separator/i);
+    });
+});
+
+describe('routing information', () => {
+    test('every hop of a multi-hop r field is decoded', () => {
+        const vector = VALID_VECTORS.find(v => /extra routing info/i.test(v.description));
+        assert.ok(vector, 'spec should contain a multi-hop routing vector');
+        const routing = lndecode.decode(vector.invoice).data.tags.find(tag => tag.type === 'r');
+        assert.strictEqual(routing.value.length, 2);
+        assert.notStrictEqual(routing.value[0].public_key, routing.value[1].public_key);
+        assert.strictEqual(routing.value[0].fee_base_msat, 1);
+        assert.strictEqual(routing.value[1].fee_base_msat, 2);
+        assert.strictEqual(routing.value[1].fee_proportional_millionths, 30);
+        assert.strictEqual(routing.value[1].cltv_expiry_delta, 4);
+    });
+
+    test('a 32-bit field above 2^31 is read unsigned', () => {
+        assert.strictEqual(lndecode.byteArrayToInt([0x80, 0, 0, 0]), 2147483648);
+        assert.strictEqual(lndecode.byteArrayToInt([0xff, 0xff, 0xff, 0xff]), 4294967295);
+    });
+});
+
+describe('payment metadata', () => {
+    test('an m field is decoded rather than skipped', () => {
+        const vector = VALID_VECTORS.find(v => /payment metadata/i.test(v.description));
+        assert.ok(vector, 'spec should contain a metadata vector');
+        const metadata = lndecode.decode(vector.invoice).data.tags.find(tag => tag.type === 'm');
+        assert.ok(metadata, 'the m field should be decoded');
+        assert.strictEqual(metadata.value, '01fafaf0');
+    });
+});
+
+describe('min_final_cltv_expiry_delta', () => {
+    test('the c field carries the current name', () => {
+        const vector = VALID_VECTORS.find(v => /list of items/i.test(v.description));
+        const c = lndecode.decode(vector.invoice).data.tags.find(tag => tag.type === 'c');
+        assert.ok(c, 'that vector should carry a c field');
+        assert.strictEqual(c.description, 'min_final_cltv_expiry_delta');
     });
 });
 

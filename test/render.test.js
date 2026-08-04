@@ -118,3 +118,64 @@ describe('offer model', () => {
         }
     });
 });
+
+describe('bolt11 model', () => {
+    function bolt11Rows(substring) {
+        const vector = VALID_VECTORS.find(v => v.description.includes(substring));
+        assert.ok(vector, `no vector matching "${substring}"`);
+        return lndecode.decodeRequest(vector.invoice).sections[0].rows;
+    }
+
+    function labels(substring) {
+        return bolt11Rows(substring).map(row => row.label);
+    }
+
+    test('an unspecified amount is not given a BTC suffix', () => {
+        const amount = bolt11Rows('donation of any amount').find(row => row.label === 'Amount');
+        assert.strictEqual(amount.value, 'any payment amount');
+    });
+
+    test('a specified amount keeps its BTC suffix', () => {
+        const amount = bolt11Rows('cup of coffee').find(row => row.label === 'Amount');
+        assert.match(amount.value, / BTC$/);
+    });
+
+    test('a fallback address is labelled as one, not as routing info', () => {
+        const found = labels('fallback (P2SH) address');
+        assert.ok(found.includes('Fallback On-Chain Address'));
+        assert.ok(!found.some(label => label.startsWith('Routing Info')));
+    });
+
+    test('each routing hop gets its own numbered row', () => {
+        const found = labels('extra routing info');
+        assert.ok(found.includes('Routing Info 1'));
+        assert.ok(found.includes('Routing Info 2'));
+    });
+
+    test('a single routing hop is not numbered', () => {
+        const rows = bolt11Rows('list of items');
+        const routing = rows.filter(row => row.label.startsWith('Routing Info'));
+        assert.strictEqual(routing.length, 1);
+        assert.strictEqual(routing[0].label, 'Routing Info');
+    });
+
+    test('the default min final cltv expiry delta is 18', () => {
+        const row = bolt11Rows('donation of any amount')
+            .find(entry => entry.label === 'Min Final CLTV Expiry Delta');
+        assert.strictEqual(row.value, 18);
+    });
+
+    test('payment metadata is labelled', () => {
+        const row = bolt11Rows('payment metadata').find(entry => entry.label === 'Payment Metadata');
+        assert.strictEqual(row.value, '01fafaf0');
+    });
+
+    test('routing sub rows are all labelled', () => {
+        for (const row of bolt11Rows('extra routing info')) {
+            if (row.sub === undefined) continue;
+            for (const sub of row.sub) {
+                assert.ok(sub.label !== undefined, `${row.label} has an unlabelled sub row`);
+            }
+        }
+    });
+});

@@ -21,10 +21,11 @@ const BOLT11_TAG_LABELS = new Map([
     ['n', 'Destination'],
     ['h', 'Description Hash'],
     ['x', 'Expiration Time'],
-    ['c', 'Min Final CLTV Expiry'],
+    ['c', 'Min Final CLTV Expiry Delta'],
     ['f', 'Fallback On-Chain Address'],
     ['r', 'Routing Info'],
-    ['9', 'Feature Bits']
+    ['9', 'Feature Bits'],
+    ['m', 'Payment Metadata']
 ]);
 
 const FIELD_LABELS = new Map([
@@ -33,7 +34,7 @@ const FIELD_LABELS = new Map([
     ['public_key', 'Public Key'],
     ['short_channel_id', 'Short Channel Id'],
     ['fee_base_msat', 'Fee Base Msat'],
-    ['fee_proportional_millionths', 'Fee Proportional Millimonths'],
+    ['fee_proportional_millionths', 'Fee Proportional Millionths'],
     ['cltv_expiry_delta', 'CLTV Expiry Delta'],
     ['r', 'R value'],
     ['s', 'S value'],
@@ -76,8 +77,10 @@ function bolt11Model(decoded, prefix) {
     rows.push({ label: 'Network', value: BOLT11_PREFIXES.get(prefix) });
 
     let btc = decoded.human_readable_part.amount / 100000000000;
-    let amount = Number.isNaN(btc) ? 'any payment amount' : btc;
-    rows.push({ label: 'Amount', value: toFixed(amount) + ' BTC' });
+    rows.push({
+        label: 'Amount',
+        value: Number.isNaN(btc) ? 'any payment amount' : toFixed(btc) + ' BTC'
+    });
 
     rows.push({ label: 'Date', value: epochToDate(decoded.data.time_stamp) });
 
@@ -85,8 +88,13 @@ function bolt11Model(decoded, prefix) {
     for (const tag of tags) {
         switch (tag.type) {
             case 'f':
+                rows.push({ label: BOLT11_TAG_LABELS.get('f'), sub: subRows(tag.value) });
+                break;
             case 'r':
-                rows.push({ label: BOLT11_TAG_LABELS.get('r'), sub: subRows(tag.value) });
+                tag.value.forEach((hop, index) => rows.push({
+                    label: BOLT11_TAG_LABELS.get('r') + (tag.value.length > 1 ? ' ' + (index + 1) : ''),
+                    sub: subRows(hop)
+                }));
                 break;
             case 'x':
                 rows.push({ label: BOLT11_TAG_LABELS.get(tag.type), value: tag.value + ' seconds' });
@@ -98,6 +106,7 @@ function bolt11Model(decoded, prefix) {
             case 'h':
             case 'c':
             case '9':
+            case 'm':
                 rows.push({ label: BOLT11_TAG_LABELS.get(tag.type), value: tag.value });
                 break;
         }
@@ -107,7 +116,7 @@ function bolt11Model(decoded, prefix) {
         rows.push({ label: BOLT11_TAG_LABELS.get('x'), value: 3600 + ' seconds' });
     }
     if (!tags.some(tag => tag.type === 'c')) {
-        rows.push({ label: BOLT11_TAG_LABELS.get('c'), value: 9 });
+        rows.push({ label: BOLT11_TAG_LABELS.get('c'), value: 18 });
     }
 
     rows.push({ label: 'Signature', sub: subRows(decoded.data.signature) });
