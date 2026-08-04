@@ -1,13 +1,10 @@
-// Loads the browser sources into a sandbox so they can be tested under Node
-// without adding module boilerplate to the files the page actually ships.
-//
-// js/pageupdate.js is deliberately excluded: it touches the DOM on load.
+// Loads the browser sources into a sandbox for testing under Node. render.js is omitted.
 
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SOURCES = ['utils.js', 'decoder.js'];
+const SOURCES = ['utils.js', 'bech32.js', 'bytes.js', 'bolt11.js', 'dispatch.js'];
 
 function load() {
     const dir = path.join(__dirname, '..', 'js');
