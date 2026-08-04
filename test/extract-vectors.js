@@ -92,15 +92,25 @@ async function writeJson(source, outName, expected) {
 
 async function writeBigSize() {
     const source = '01-messaging.md';
-    const text = await fetchText(source);
+    let text = await fetchText(source);
     const appendix = text.indexOf('## Appendix A: BigSize Test Vectors');
     if (appendix === -1) throw new Error('could not locate BigSize appendix');
 
-    // Each fenced json block in the appendix is one suite (decoding, then encoding).
-    const blocks = [...text.slice(appendix).matchAll(/```json\n([\s\S]*?)```/g)].map(m => JSON.parse(m[1]));
+    // Bounded at the next appendix.
+    const end = text.indexOf('## Appendix B', appendix);
+    if (end === -1) throw new Error('could not locate the appendix after BigSize');
+    text = text.slice(appendix, end);
+
+    // Each fenced json block is one suite. Values are quoted so the exact digits
+    // survive parsing.
+    const blocks = [...text.matchAll(/```json\n([\s\S]*?)```/g)]
+        .map(m => JSON.parse(m[1].replace(/"value":\s*(\d+)/g, '"value": "$1"')));
     if (!blocks.length) throw new Error('no fenced json blocks in the BigSize appendix');
 
     const merged = [].concat(...blocks);
+    if (!merged.every(v => typeof v.value === 'string')) {
+        throw new Error('BigSize values should all have been quoted');
+    }
     fs.writeFileSync(path.join(OUT_DIR, 'bigsize.json'), JSON.stringify(merged, null, 2) + '\n');
     return `bigsize.json: ${merged.length} vectors from ${blocks.length} block(s)`;
 }

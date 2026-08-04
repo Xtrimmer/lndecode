@@ -1,8 +1,4 @@
-// BOLT 12 conformance tests, driven by the spec's own vectors.
-//
-//   npm test
-//
-// Vectors are vendored under test/vectors/ by test/extract-vectors.js.
+// BOLT 12 conformance tests over the spec vectors in test/vectors/.
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
@@ -24,8 +20,6 @@ describe('bolt12 string format', () => {
     }
 
     test('all valid vectors unpack to the same bytes', () => {
-        // Every valid vector is the same offer, written with different casing and '+'
-        // placement, so they must all reduce to one byte string.
         const unpacked = new Set(
             FORMAT_VECTORS.filter(v => v.valid)
                 .map(v => lndecode.byteArrayToHexString(lndecode.bolt12ToBytes(v.string).bytes))
@@ -64,8 +58,6 @@ describe('bolt12 continuation rules', () => {
 });
 
 describe('bolt12 has no checksum', () => {
-    // The last six characters are payload, not a checksum. Truncating them must change
-    // the decoded bytes rather than being silently absorbed.
     test('all characters contribute to the payload', () => {
         const full = FORMAT_VECTORS.find(v => v.valid && !v.string.includes('+')).string;
         const truncated = full.slice(0, -6);
