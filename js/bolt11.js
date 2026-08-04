@@ -5,6 +5,10 @@
 //TODO - A reader MUST check that the SHA-2 256 in the h field exactly matches the hashed description.
 //TODO - A reader MUST use the n field to validate the signature instead of performing signature recovery if a valid n field is provided.
 
+const TIMESTAMP_LENGTH = 7;
+const SIGNATURE_LENGTH = 104;
+const ROUTE_HOP_LENGTH = 51;
+
 function decode(paymentRequest) {
     if (typeof paymentRequest !== 'string') {
         throw new Error('Invalid input: payment request must be a string');
@@ -15,9 +19,16 @@ function decode(paymentRequest) {
 
     let input = stripped.toLowerCase();
     let splitPosition = input.lastIndexOf('1');
+    if (splitPosition < 1) {
+        throw new Error('Malformed request: missing separator');
+    }
     let humanReadablePart = input.substring(0, splitPosition);
     let data = input.substring(splitPosition + 1, input.length - 6);
     let checksum = input.substring(input.length - 6, input.length);
+    if (data.length < TIMESTAMP_LENGTH + SIGNATURE_LENGTH) {
+        throw new Error('Malformed request: data part is too short at ' + data.length
+            + ' characters, needs at least ' + (TIMESTAMP_LENGTH + SIGNATURE_LENGTH));
+    }
     if (!verify_checksum(humanReadablePart, bech32ToFiveBitArray(data + checksum))) {
         throw new Error('Malformed request: checksum is incorrect'); // A reader MUST fail if the checksum is incorrect.
     }
@@ -60,6 +71,23 @@ function decodeData(data, humanReadablePart) {
         'signature': decodeSignature(signature),
         'signing_data': value
     }
+}
+
+// An 'r' field carries one or more 51-byte hops.
+function decodeRoutingInformation(data) {
+    let bytes = fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data));
+    let hops = [];
+    for (let offset = 0; offset + ROUTE_HOP_LENGTH <= bytes.length; offset += ROUTE_HOP_LENGTH) {
+        let hop = bytes.slice(offset, offset + ROUTE_HOP_LENGTH);
+        hops.push({
+            'public_key': byteArrayToHexString(hop.slice(0, 33)),
+            'short_channel_id': byteArrayToHexString(hop.slice(33, 41)),
+            'fee_base_msat': byteArrayToInt(hop.slice(41, 45)),
+            'fee_proportional_millionths': byteArrayToInt(hop.slice(45, 49)),
+            'cltv_expiry_delta': byteArrayToInt(hop.slice(49, 51))
+        });
+    }
+    return hops;
 }
 
 function decodeSignature(signature) {
@@ -217,7 +245,7 @@ function decodeTag(type, length, data) {
             return {
                 'type': type,
                 'length': length,
-                'description': 'min_final_cltv_expiry',
+                'description': 'min_final_cltv_expiry_delta',
                 'value': bech32ToInt(data)
             };
         case 'f':
@@ -234,23 +262,18 @@ function decodeTag(type, length, data) {
                 }
             };
         case 'r':
-            data = fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data));
-            let pubkey = data.slice(0, 33);
-            let shortChannelId = data.slice(33, 41);
-            let feeBaseMsat = data.slice(41, 45);
-            let feeProportionalMillionths = data.slice(45, 49);
-            let cltvExpiryDelta = data.slice(49, 51);
             return {
                 'type': type,
                 'length': length,
                 'description': 'routing_information',
-                'value': {
-                    'public_key': byteArrayToHexString(pubkey),
-                    'short_channel_id': byteArrayToHexString(shortChannelId),
-                    'fee_base_msat': byteArrayToInt(feeBaseMsat),
-                    'fee_proportional_millionths': byteArrayToInt(feeProportionalMillionths),
-                    'cltv_expiry_delta': byteArrayToInt(cltvExpiryDelta)
-                }
+                'value': decodeRoutingInformation(data)
+            };
+        case 'm':
+            return {
+                'type': type,
+                'length': length,
+                'description': 'payment_metadata',
+                'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case '9':
             return {
@@ -348,10 +371,12 @@ function bech32ToBinaryString(byteArray) {
     }).join('');
 }
 
+// Multiplies rather than shifting, which would truncate to 32 bits and turn a
+// fee_base_msat above 2^31 negative.
 function byteArrayToInt(byteArray) {
     let value = 0;
     for (let i = 0; i < byteArray.length; ++i) {
-        value = (value << 8) + byteArray[i];
+        value = value * 256 + byteArray[i];
     }
     return value;
 }

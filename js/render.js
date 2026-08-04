@@ -56,10 +56,11 @@ function createMultiRow(label, subRows) {
     labelCol.classList.add('font-weight-bold');
     labelCol.classList.add('col-sm-4');
     labelCol.textContent = label;
-    labelCol.classList.add('col-sm-8');
     row.appendChild(labelCol);
 
-    row.appendChild(document.createElement('div'));
+    let spacer = document.createElement('div');
+    spacer.classList.add('col-sm-8');
+    row.appendChild(spacer);
     section.appendChild(row);
 
     for (const sub of subRows) {
