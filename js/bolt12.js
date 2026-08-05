@@ -65,6 +65,7 @@ function parseTlvStream(bytes) {
     let previousType = null;
 
     while (reader.remaining() > 0) {
+        let start = reader.position();
         let type = reader.readBigSize('tlv type');
         let length = reader.readBigSize('tlv length');
 
@@ -76,10 +77,12 @@ function parseTlvStream(bytes) {
         }
         previousType = type;
 
+        let value = reader.readBytes(Number(length), 'tlv value');
         records.push({
             type: type,
             length: Number(length),
-            value: reader.readBytes(Number(length), 'tlv value')
+            value: value,
+            tlv: bytes.slice(start, reader.position())
         });
     }
     return records;
