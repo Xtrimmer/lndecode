@@ -61,6 +61,11 @@ function byteReader(bytes) {
         return bytes.length - offset;
     }
 
+    // The index of the next byte to be read.
+    function position() {
+        return offset;
+    }
+
     function requireAvailable(count, what) {
         if (remaining() < count) {
             throw new Error('Malformed request: truncated ' + what);
@@ -125,6 +130,7 @@ function byteReader(bytes) {
 
     return {
         remaining: remaining,
+        position: position,
         readByte: readByte,
         peekByte: peekByte,
         readBytes: readBytes,

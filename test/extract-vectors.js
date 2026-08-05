@@ -6,6 +6,7 @@
 //   test/vectors.js                     BOLT 11 invoices, parsed out of the spec prose
 //   test/vectors/format-string.json     BOLT 12 string format
 //   test/vectors/offers.json            BOLT 12 offers
+//   test/vectors/signature.json         BOLT 12 merkle trees and signature hashes
 //   test/vectors/bigsize.json           BigSize, from a fenced block in BOLT 1
 
 const fs = require('fs');
@@ -134,6 +135,7 @@ async function writeBigSize() {
         await writeBolt11(),
         await writeJson('bolt12/format-string-test.json', 'format-string.json', 12),
         await writeJson('bolt12/offers-test.json', 'offers.json', 50),
+        await writeJson('bolt12/signature-test.json', 'signature.json', 4),
         await writeBigSize()
     ];
     for (const r of results) console.log('  ' + r);
