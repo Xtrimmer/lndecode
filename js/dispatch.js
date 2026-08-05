@@ -59,8 +59,11 @@ function decodeRequest(request) {
     if (prefix === 'lno') {
         return offerModel(decodeOffer(request));
     }
-    if (BOLT12_PREFIXES.has(prefix)) {
-        throw new Error('Not yet supported: bolt12 ' + BOLT12_PREFIXES.get(prefix) + ' decoding');
+    if (prefix === 'lnr') {
+        return invoiceRequestModel(decodeInvoiceRequest(request));
+    }
+    if (prefix === 'lnp') {
+        return payerProofModel(decodePayerProof(request));
     }
     throw new Error('Malformed request: unknown prefix');
 }
@@ -279,14 +282,14 @@ function offerModel(offer) {
     };
 }
 
-// An offer's payload is a byte stream, so its groups are the tlv records rather than
+// A bolt12 payload is a byte stream, so its groups are the tlv records rather than
 // character runs.
-function offerBreakdownRows(offer) {
+function tlvBreakdownRows(prefix, records) {
     let rows = [
-        { label: 'prefix', value: offer.prefix },
+        { label: 'prefix', value: prefix },
         { label: 'separator', value: '1' }
     ];
-    for (const record of offer.raw_records) {
+    for (const record of records) {
         rows.push({
             label: 'tlv ' + record.type + ' (' + (record.name || 'unknown') + ')',
             sub: [
@@ -297,4 +300,172 @@ function offerBreakdownRows(offer) {
         });
     }
     return rows;
+}
+
+function offerBreakdownRows(offer) {
+    return tlvBreakdownRows(offer.prefix, offer.raw_records);
+}
+
+// --- bolt12 invoice requests -------------------------------------------------
+
+function invreqField(invreq, name) {
+    let field = invreq.fields.find(entry => entry.name === name);
+    return field === undefined ? undefined : field.value;
+}
+
+// An amount alongside a currency is in that currency's ISO 4217 minor unit. Without one it
+// is millisatoshi.
+function amountText(amount, currency) {
+    if (amount === undefined) return undefined;
+    return currency === undefined
+        ? amount.toString() + ' msat'
+        : amount.toString() + ' ' + currency + ' (minor units)';
+}
+
+function invoiceRequestModel(invreq) {
+    let rows = [];
+    let field = name => invreqField(invreq, name);
+
+    let chains = field('invreq_chain');
+    rows.push({
+        label: 'Chain',
+        value: chains === undefined
+            ? 'bitcoin mainnet'
+            : chains.map(hash => CHAIN_NAMES.get(hash) || hash).join(', ')
+    });
+
+    let amount = amountText(field('invreq_amount'), undefined);
+    let offerAmount = amountText(field('offer_amount'), field('offer_currency'));
+    rows.push({ label: 'Amount Requested', value: amount === undefined ? 'unspecified' : amount });
+    if (offerAmount !== undefined) {
+        rows.push({ label: 'Offer Amount', value: offerAmount });
+    }
+
+    for (const [name, label] of [
+        ['offer_description', 'Offer Description'],
+        ['offer_issuer', 'Offer Issuer'],
+        ['invreq_payer_note', 'Payer Note']
+    ]) {
+        let value = field(name);
+        if (value !== undefined) rows.push({ label: label, value: value });
+    }
+
+    let expiry = field('offer_absolute_expiry');
+    if (expiry !== undefined) {
+        rows.push({ label: 'Offer Expires', value: epochToDate(Number(expiry)) });
+    }
+
+    let quantity = field('invreq_quantity');
+    if (quantity !== undefined) {
+        let max = field('offer_quantity_max');
+        rows.push({
+            label: 'Quantity',
+            value: quantity.toString() + (max === undefined || max === 0n ? '' : ' of ' + max)
+        });
+    }
+
+    let bip353 = field('invreq_bip_353_name');
+    if (bip353 !== undefined) {
+        rows.push({ label: 'BIP 353 Name', value: '₿' + bip353.name + '@' + bip353.domain });
+    }
+
+    for (const [name, label] of [
+        ['invreq_features', 'Request Feature Bits'],
+        ['offer_features', 'Offer Feature Bits']
+    ]) {
+        let features = field(name);
+        if (features !== undefined) {
+            let bits = setFeatureBits(features);
+            rows.push({ label: label, value: bits.length === 0 ? 'none' : bits.join(', ') });
+        }
+    }
+
+    for (const name of ['invreq_paths', 'offer_paths']) {
+        let paths = field(name);
+        if (paths !== undefined) {
+            paths.forEach((path, index) => rows.push(blindedPathRow(path, index)));
+        }
+    }
+
+    let metadata = field('offer_metadata');
+    if (metadata !== undefined) {
+        rows.push({ label: 'Offer Metadata', value: metadata });
+    }
+
+    let issuerId = field('offer_issuer_id');
+    if (issuerId !== undefined) {
+        rows.push({ label: 'Offer Issuer Id', value: issuerId });
+    }
+
+    rows.push({ label: 'Payer Id', value: field('invreq_payer_id') });
+    rows.push({ label: 'Payer Metadata', value: field('invreq_metadata') });
+    rows.push({ label: 'Signature', value: 'verified against Payer Id' });
+    rows.push({ label: 'Merkle Root', value: invreq.merkle_root });
+
+    return {
+        kind: 'bolt12-invoice-request',
+        prefix: invreq.prefix,
+        sections: [
+            { title: 'Invoice Request Info', emphasis: true, rows: rows },
+            { title: 'Invoice Request Breakdown', rows: tlvBreakdownRows(invreq.prefix, invreq.raw_records) }
+        ],
+        jsonTitle: 'Decoded JSON',
+        raw: invreq
+    };
+}
+
+// --- bolt12 payer proofs -----------------------------------------------------
+
+// A proof's disclosed invoice fields are the ones in the tree it proves. Everything else
+// in the stream is either a signature or proof scaffolding.
+function disclosedRecords(proof) {
+    let disclosed = new Set(proof.disclosed_types);
+    return proof.raw_records.filter(record => disclosed.has(record.type));
+}
+
+function payerProofModel(proof) {
+    let rows = [];
+
+    rows.push({ label: 'Payment Preimage', value: proof.payment_preimage });
+    rows.push({ label: 'Payment Hash', value: proof.payment_hash });
+    if (proof.note !== undefined) {
+        rows.push({ label: 'Note', value: proof.note });
+    }
+
+    let disclosed = disclosedRecords(proof);
+    rows.push({
+        label: 'Disclosed Fields',
+        value: disclosed.length + ' of ' + (disclosed.length + proof.withheld_count),
+        sub: disclosed.map(record => ({ label: record.name, value: record.hex }))
+    });
+
+    // Marker numbers hide which fields were held back, so only the count is knowable.
+    rows.push({
+        label: 'Withheld Fields',
+        value: proof.withheld_count + ' withheld, identities hidden by the proof format'
+    });
+
+    rows.push({ label: 'Payer Id', value: proof.payer_id });
+    rows.push({ label: 'Invoice Node Id', value: proof.node_id });
+    rows.push({
+        label: 'Invoice Signature',
+        value: 'verified against Invoice Node Id',
+        sub: [{ label: 'invoice merkle root', value: proof.invoice_merkle_root }]
+    });
+    rows.push({
+        label: 'Proof Signature',
+        value: 'verified against Payer Id',
+        sub: [{ label: 'proof merkle root', value: proof.proof_merkle_root }]
+    });
+
+    return {
+        kind: 'bolt12-payer-proof',
+        prefix: proof.prefix,
+        sections: [
+            { title: 'Payer Proof Info', emphasis: true, rows: rows },
+            { title: 'Payer Proof Breakdown', rows: tlvBreakdownRows(proof.prefix, proof.raw_records) }
+        ],
+        jsonTitle: 'Decoded JSON',
+        raw: proof
+    };
 }

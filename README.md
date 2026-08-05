@@ -19,30 +19,41 @@ hints, and fallback addresses in all five forms (P2PKH, P2SH, P2WPKH, P2WSH, P2T
 lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9qrsgquk0rl77nj30yxdy8j9vdx85fkpmdla2087ne0xh8nhedh8w27kyke0lp53ut353s06fv3qfegext0eh0ymjpf39tuven09sam30g4vgpfna3rh
 ```
 
-**[BOLT 12](https://github.com/lightning/bolts/blob/master/12-offer-encoding.md) offers** —
-`lno`.
+**[BOLT 12](https://github.com/lightning/bolts/blob/master/12-offer-encoding.md)** — all three
+forms the spec defines.
 
-All eleven offer TLV fields (types 2 through 22), including blinded paths, currency-denominated
-amounts, feature bits, and quantity limits. Offers carry no checksum and no signature, both by
+*Offers* (`lno`) — all eleven offer TLV fields, including blinded paths, currency-denominated
+amounts, feature bits and quantity limits. Offers carry no checksum and no signature, both by
 design.
 
 ```
 lno1pqpzwyq2p32x2um5ypmx2cm5dae8x93pqthvwfzadd7jejes8q9lhc4rvjxd022zv5l44g6qah82ru5rdpnpj
 ```
 
-Each decode shows three sections: the human-readable fields, a character-by-character
-breakdown of the raw request, and the decoded JSON.
+*Invoice requests* (`lnr`) — the offer fields a request copies plus types 0 and 80 through 91,
+with the BIP-340 Schnorr signature verified against `invreq_payer_id` over the merkle root.
 
-## Not yet supported
+*Payer proofs* (`lnp`) — a proof discloses a chosen subset of an invoice. The invoice's merkle
+root is rebuilt from the disclosed fields, the supplied nonce hashes and the hashes standing in
+for omitted subtrees, then two signatures are checked: `signature` against `invoice_node_id`
+and `proof_signature` against `invreq_payer_id`. The payment preimage is checked against the
+payment hash. Withheld fields are reported as withheld — how many, though not which, since the
+format hides their identities deliberately.
 
-BOLT 12 invoice requests (`lnr`) and payer proofs (`lnp`) are recognised and reported as
-unsupported rather than mis-parsed. The merkle-root and BIP-340 Schnorr layers both forms
-need are built, and payer proof decoding and verification are implemented; neither prefix is
-wired into the page yet.
+Each decode shows three sections: the human-readable fields, a breakdown of the raw request,
+and the decoded JSON.
+
+## Not supported
 
 BOLT 12 defines human-readable prefixes for those three forms only. Invoices normally travel
 over onion messages rather than as strings, and the spec defines no prefix for them — though
 its own payer proof test vectors serialise invoices as `lni1…`, as some implementations do.
+
+Rules that need state a string decoder does not have are not enforced: whether an invoice
+request matches a real unexpired offer, whether a chain is one the reader supports, whether
+`invreq_metadata` repeats an earlier request, and how a request arrived. An offer amount
+denominated in a currency is shown in that currency's ISO 4217 minor units rather than
+converted, and is not compared against a requested millisatoshi amount.
 
 ## URL parameter
 
