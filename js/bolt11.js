@@ -32,11 +32,51 @@ function decode(paymentRequest) {
     }
     let decodedData = decodeData(data, humanReadablePart);
     verifySignature(decodedData);
+    let humanReadable = decodeHumanReadablePart(humanReadablePart);
     return {
-        'human_readable_part': decodeHumanReadablePart(humanReadablePart),
+        'human_readable_part': humanReadable,
         'data': decodedData,
-        'checksum': checksum
+        'checksum': checksum,
+        'raw_parts': rawParts(humanReadablePart, humanReadable.prefix, data, checksum)
     }
+}
+
+// The request split into the character groups it is written from. Concatenating every
+// part reproduces the request.
+function rawParts(humanReadablePart, prefix, data, checksum) {
+    let parts = [{ 'name': 'prefix', 'chars': prefix }];
+
+    let amountChars = humanReadablePart.substring(prefix.length);
+    if (amountChars.length > 0) {
+        parts.push({ 'name': 'amount', 'chars': amountChars });
+    }
+    parts.push({ 'name': 'separator', 'chars': '1' });
+    parts.push({ 'name': 'timestamp', 'chars': data.substring(0, TIMESTAMP_LENGTH) });
+
+    let tagData = data.substring(TIMESTAMP_LENGTH, data.length - SIGNATURE_LENGTH);
+    for (const tag of extractTags(tagData)) {
+        parts.push({
+            'name': 'tagged field ' + tag.type,
+            'type': tag.type,
+            'length_chars': tag.length_chars,
+            'data_length': tag.length,
+            'chars': tag.data
+        });
+    }
+
+    parts.push({ 'name': 'signature', 'chars': data.substring(data.length - SIGNATURE_LENGTH) });
+    parts.push({ 'name': 'checksum', 'chars': checksum });
+    return parts;
+}
+
+// Joins the parts back into the request they came from.
+function rawPartsToString(parts) {
+    let joined = '';
+    for (const part of parts) {
+        if (part.type !== undefined) joined += part.type + part.length_chars;
+        joined += part.chars;
+    }
+    return joined;
 }
 
 // Compares an invoice's description_hash against a description supplied by the caller.
@@ -218,10 +258,12 @@ function extractTags(str) {
     let tags = [];
     while (str.length > 0) {
         let type = str.charAt(0);
-        let dataLength = bech32ToInt(str.substring(1, 3));
+        let lengthChars = str.substring(1, 3);
+        let dataLength = bech32ToInt(lengthChars);
         let data = str.substring(3, dataLength + 3);
         tags.push({
             'type': type,
+            'length_chars': lengthChars,
             'length': dataLength,
             'data': data
         });

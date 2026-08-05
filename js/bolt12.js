@@ -290,5 +290,11 @@ function decodeOffer(request) {
         });
     }
     validateOffer(fields);
-    return { prefix: parsed.prefix, fields: fields };
+    let rawRecords = parsed.records.map(record => ({
+        type: Number(record.type),
+        name: OFFER_FIELDS.has(record.type) ? OFFER_FIELDS.get(record.type).name : undefined,
+        length: record.length,
+        hex: byteArrayToHexString(record.value)
+    }));
+    return { prefix: parsed.prefix, fields: fields, raw_records: rawRecords };
 }

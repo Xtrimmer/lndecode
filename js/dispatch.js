@@ -65,6 +65,13 @@ function decodeRequest(request) {
     throw new Error('Malformed request: unknown prefix');
 }
 
+// Renders BigInt as a string, and omits the character breakdown, which the Raw Data
+// section already shows.
+function jsonReplacer(key, value) {
+    if (key === 'raw_parts') return undefined;
+    return typeof value === 'bigint' ? value.toString() : value;
+}
+
 function subRows(object) {
     return Object.keys(object).map(key => ({
         label: FIELD_LABELS.get(key),
@@ -121,15 +128,35 @@ function bolt11Model(decoded, prefix) {
     }
 
     rows.push({ label: 'Signature', sub: subRows(decoded.data.signature) });
-    rows.push({ label: 'Signing Data', value: decoded.data.signing_data });
-    rows.push({ label: 'Checksum', value: decoded.checksum });
 
     return {
         kind: 'bolt11-invoice',
         prefix: prefix,
-        sections: [{ title: 'Payment Info:', rows: rows }],
+        sections: [
+            { title: 'Payment Info', emphasis: true, rows: rows },
+            { title: 'Invoice Breakdown', rows: breakdownRows(decoded.raw_parts) }
+        ],
+        jsonTitle: 'Decoded JSON',
         raw: decoded
     };
+}
+
+// One row per character group of the request. A tagged field is split into the three
+// groups it is written from.
+function breakdownRows(parts) {
+    return parts.map(part => {
+        if (part.type === undefined) {
+            return { label: part.name, value: part.chars };
+        }
+        return {
+            label: part.name + ' (' + (BOLT11_TAG_LABELS.get(part.type) || 'unknown') + ')',
+            sub: [
+                { label: 'type', value: part.type },
+                { label: 'data_length', value: part.length_chars + ' (' + part.data_length + ')' },
+                { label: 'data', value: part.chars }
+            ]
+        };
+    });
 }
 
 // --- bolt12 offers -----------------------------------------------------------
@@ -243,7 +270,31 @@ function offerModel(offer) {
     return {
         kind: 'bolt12-offer',
         prefix: offer.prefix,
-        sections: [{ title: 'Offer Info:', rows: rows }],
+        sections: [
+            { title: 'Offer Info', emphasis: true, rows: rows },
+            { title: 'Offer Breakdown', rows: offerBreakdownRows(offer) }
+        ],
+        jsonTitle: 'Decoded JSON',
         raw: offer
     };
+}
+
+// An offer's payload is a byte stream, so its groups are the tlv records rather than
+// character runs.
+function offerBreakdownRows(offer) {
+    let rows = [
+        { label: 'prefix', value: offer.prefix },
+        { label: 'separator', value: '1' }
+    ];
+    for (const record of offer.raw_records) {
+        rows.push({
+            label: 'tlv ' + record.type + ' (' + (record.name || 'unknown') + ')',
+            sub: [
+                { label: 'type', value: String(record.type) },
+                { label: 'length', value: String(record.length) },
+                { label: 'value', value: record.hex }
+            ]
+        });
+    }
+    return rows;
 }
