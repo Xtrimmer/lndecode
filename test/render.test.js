@@ -5,9 +5,19 @@ const assert = require('node:assert');
 
 const { load } = require('./load.js');
 const OFFER_VECTORS = require('./vectors/offers.json');
+const PAYER_PROOF_VECTORS = require('./vectors/payer-proof.json');
+const SIGNATURE_VECTORS = require('./vectors/signature.json');
 const { VALID_VECTORS } = require('./vectors.js');
 
 const lndecode = load();
+
+const INVOICE_REQUEST = SIGNATURE_VECTORS.find(v => v.bolt12 !== undefined);
+
+function proofBech32(name) {
+    const found = PAYER_PROOF_VECTORS.valid_vectors.find(v => v.name === name);
+    assert.ok(found, `no payer proof vector named "${name}"`);
+    return found.result.bech32;
+}
 
 function offerModel(substring) {
     const found = OFFER_VECTORS.find(v => v.description.includes(substring));
@@ -31,9 +41,23 @@ describe('dispatch', () => {
         assert.strictEqual(offerModel('Minimal bolt12 offer').kind, 'bolt12-offer');
     });
 
-    test('reports the signed bolt12 forms as unsupported', () => {
-        for (const prefix of ['lnr', 'lnp']) {
-            assert.throws(() => lndecode.decodeRequest(prefix + '1qqq'), /not yet supported/i);
+    test('routes an invoice request to the invoice request model', () => {
+        assert.strictEqual(lndecode.decodeRequest(INVOICE_REQUEST.bolt12).kind,
+            'bolt12-invoice-request');
+    });
+
+    test('routes a payer proof to the payer proof model', () => {
+        assert.strictEqual(lndecode.decodeRequest(proofBech32('full_disclosure')).kind,
+            'bolt12-payer-proof');
+    });
+
+    test('every bolt12 prefix the spec defines is routed', () => {
+        // A truncated body still reaches its decoder, so the error names a field or the
+        // stream rather than the prefix.
+        for (const prefix of ['lno', 'lnr', 'lnp']) {
+            assert.throws(() => lndecode.decodeRequest(prefix + '1qqq'),
+                error => !/unknown prefix|not yet supported/i.test(String(error.message)),
+                prefix);
         }
     });
 
@@ -304,5 +328,153 @@ describe('sections do not repeat each other', () => {
         const checksum = model.sections[1].rows.find(row => row.label === 'checksum');
         assert.ok(checksum, 'the breakdown should carry the checksum');
         assert.strictEqual(checksum.value, model.raw.checksum);
+    });
+});
+
+describe('invoice request model', () => {
+    const model = () => lndecode.decodeRequest(INVOICE_REQUEST.bolt12);
+
+    test('both sections are present and titled for the form', () => {
+        assert.deepStrictEqual(Array.from(model().sections, s => s.title),
+            ['Invoice Request Info', 'Invoice Request Breakdown']);
+    });
+
+    test('an absent invreq_chain shows bitcoin mainnet', () => {
+        assert.strictEqual(rows(model()).get('Chain').value, 'bitcoin mainnet');
+    });
+
+    test('an absent invreq_amount is unspecified rather than blank', () => {
+        assert.strictEqual(rows(model()).get('Amount Requested').value, 'unspecified');
+    });
+
+    test('a currency-denominated offer amount is labelled as minor units', () => {
+        assert.strictEqual(rows(model()).get('Offer Amount').value, '100 USD (minor units)');
+    });
+
+    test('the payer metadata and id are shown', () => {
+        const built = rows(model());
+        assert.strictEqual(built.get('Payer Metadata').value, '0000000000000000');
+        assert.match(built.get('Payer Id').value, /^0324653eac/);
+    });
+
+    test('the signature row names the key it verified against', () => {
+        assert.strictEqual(rows(model()).get('Signature').value, 'verified against Payer Id');
+    });
+
+    test('the merkle root is the one the spec publishes', () => {
+        assert.strictEqual(rows(model()).get('Merkle Root').value, INVOICE_REQUEST.merkle);
+    });
+
+    test('every row carries a label', () => {
+        for (const row of model().sections[0].rows) {
+            assert.ok(row.label, `row without a label: ${JSON.stringify(row)}`);
+        }
+    });
+});
+
+describe('payer proof model', () => {
+    const model = name => lndecode.decodeRequest(proofBech32(name));
+
+    test('both sections are present and titled for the form', () => {
+        assert.deepStrictEqual(Array.from(model('full_disclosure').sections, s => s.title),
+            ['Payer Proof Info', 'Payer Proof Breakdown']);
+    });
+
+    test('the preimage and payment hash are shown', () => {
+        const built = rows(model('full_disclosure'));
+        assert.match(built.get('Payment Preimage').value, /^0101010101/);
+        assert.strictEqual(built.get('Payment Hash').value.length, 64);
+    });
+
+    test('withheld fields are stated rather than left absent', () => {
+        // The whole point of a proof is that some fields are missing, so a reader must be
+        // told they were withheld instead of inferring it from a short list.
+        const built = rows(model('minimal_disclosure'));
+        assert.match(built.get('Withheld Fields').value, /^7 withheld/);
+        assert.match(built.get('Withheld Fields').value, /identities hidden/);
+    });
+
+    test('the disclosed count and total agree with the vector', () => {
+        for (const vector of PAYER_PROOF_VECTORS.valid_vectors) {
+            const built = rows(lndecode.decodeRequest(vector.result.bech32));
+            const disclosed = vector.input.invoice_fields
+                .filter(f => f.included && f.type !== 240).length;
+            const withheld = vector.input.invoice_fields
+                .filter(f => !f.included && f.type !== 240).length;
+            assert.strictEqual(built.get('Disclosed Fields').value,
+                `${disclosed} of ${disclosed + withheld}`, vector.name);
+        }
+    });
+
+    test('each disclosed field is named in a sub row', () => {
+        const row = rows(model('minimal_disclosure')).get('Disclosed Fields');
+        assert.deepStrictEqual(Array.from(row.sub, s => s.label),
+            ['invreq_payer_id', 'invoice_payment_hash', 'invoice_node_id']);
+    });
+
+    test('both signature verdicts are shown with their roots', () => {
+        const built = rows(model('full_disclosure'));
+        const vector = PAYER_PROOF_VECTORS.valid_vectors.find(v => v.name === 'full_disclosure');
+        assert.match(built.get('Invoice Signature').value, /verified against Invoice Node Id/);
+        assert.strictEqual(built.get('Invoice Signature').sub[0].value,
+            vector.working.invoice_merkle_root);
+        assert.match(built.get('Proof Signature').value, /verified against Payer Id/);
+        assert.strictEqual(built.get('Proof Signature').sub[0].value,
+            vector.working.proof_merkle_root);
+    });
+
+    test('only with_note shows a note row', () => {
+        for (const vector of PAYER_PROOF_VECTORS.valid_vectors) {
+            const built = rows(lndecode.decodeRequest(vector.result.bech32));
+            assert.strictEqual(built.has('Note'), vector.name === 'with_note', vector.name);
+        }
+    });
+
+    test('every valid vector builds a model with labelled rows', () => {
+        for (const vector of PAYER_PROOF_VECTORS.valid_vectors) {
+            const built = lndecode.decodeRequest(vector.result.bech32);
+            assert.ok(built.sections[0].rows.length > 0, vector.name);
+            for (const row of built.sections[0].rows) {
+                assert.ok(row.label, `${vector.name}: row without a label`);
+            }
+        }
+    });
+
+    test('an invalid proof reaches the caller as an error', () => {
+        for (const vector of PAYER_PROOF_VECTORS.invalid_vectors) {
+            assert.throws(() => lndecode.decodeRequest(vector.bech32), undefined, vector.reason);
+        }
+    });
+});
+
+describe('bolt12 breakdowns reconstruct their stream', () => {
+    function reassemble(section, prefix) {
+        let out = prefix + '1';
+        for (const row of section.rows) {
+            if (row.label === 'prefix' || row.label === 'separator') continue;
+            const byLabel = new Map(Array.from(row.sub, s => [s.label, s.value]));
+            out += byLabel.get('type') + ':' + byLabel.get('length') + ':' + byLabel.get('value') + ' ';
+        }
+        return out;
+    }
+
+    test('every tlv record appears in the breakdown exactly once', () => {
+        const cases = [INVOICE_REQUEST.bolt12, proofBech32('with_note'),
+            OFFER_VECTORS.find(v => v.valid).bolt12];
+        for (const request of cases) {
+            const built = lndecode.decodeRequest(request);
+            const records = built.sections[1].rows.filter(r => r.sub !== undefined);
+            assert.strictEqual(records.length, built.raw.raw_records.length, request.slice(0, 12));
+            assert.ok(reassemble(built.sections[1], built.prefix).length > 0);
+        }
+    });
+
+    test('the breakdown starts with the prefix and separator', () => {
+        for (const request of [INVOICE_REQUEST.bolt12, proofBech32('with_note')]) {
+            const built = lndecode.decodeRequest(request);
+            assert.deepStrictEqual(Array.from(built.sections[1].rows.slice(0, 2), r => r.label),
+                ['prefix', 'separator']);
+            assert.strictEqual(built.sections[1].rows[0].value, built.prefix);
+        }
     });
 });
