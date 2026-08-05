@@ -7,6 +7,7 @@
 //   test/vectors/format-string.json     BOLT 12 string format
 //   test/vectors/offers.json            BOLT 12 offers
 //   test/vectors/signature.json         BOLT 12 merkle trees and signature hashes
+//   test/vectors/payer-proof.json        BOLT 12 payer proofs
 //   test/vectors/bip340.json            BIP-340 Schnorr, from the bitcoin/bips csv
 //   test/vectors/bigsize.json           BigSize, from a fenced block in BOLT 1
 
@@ -135,6 +136,23 @@ async function writeBigSize() {
     return `bigsize.json: ${merged.length} vectors from ${blocks.length} block(s)`;
 }
 
+// --- BOLT 12 payer proofs: an object rather than an array ---------------------
+
+async function writePayerProof() {
+    const source = 'bolt12/payer-proof-test.json';
+    const parsed = JSON.parse(await fetchText(source));
+    for (const key of ['payer_secret', 'keys', 'valid_vectors', 'invalid_vectors']) {
+        if (parsed[key] === undefined) throw new Error(`${source} has no "${key}"`);
+    }
+    if (!parsed.valid_vectors.length || !parsed.invalid_vectors.length) {
+        throw new Error(`${source} looks wrong: ${parsed.valid_vectors.length} valid, `
+            + `${parsed.invalid_vectors.length} invalid`);
+    }
+    fs.writeFileSync(path.join(OUT_DIR, 'payer-proof.json'), JSON.stringify(parsed, null, 2) + '\n');
+    return `payer-proof.json: ${parsed.valid_vectors.length} valid, `
+        + `${parsed.invalid_vectors.length} invalid`;
+}
+
 // --- BIP-340: the Schnorr suite BOLT 12 signatures are defined against ----------
 
 async function writeBip340() {
@@ -186,6 +204,7 @@ async function writeBip340() {
         await writeJson('bolt12/format-string-test.json', 'format-string.json', 12),
         await writeJson('bolt12/offers-test.json', 'offers.json', 50),
         await writeJson('bolt12/signature-test.json', 'signature.json', 4),
+        await writePayerProof(),
         await writeBip340(),
         await writeBigSize()
     ];

@@ -84,3 +84,59 @@ function merkleRoot(tlvs) {
 function signatureHash(messageName, fieldName, root) {
     return bolt12TaggedHash(textToByteArray('lightning' + messageName + fieldName), root);
 }
+
+// Marks a subtree whose every leaf is absent.
+const OMITTED_SUBTREE = { omitted: true };
+
+// Pairs leaves into internal nodes by the same rule as combineLevel, retaining the
+// structure so a tree with absent leaves can be walked.
+function buildTree(leaves) {
+    if (leaves.length === 0) {
+        throw new Error('Malformed request: a merkle tree needs at least one tlv record');
+    }
+    let nodes = leaves;
+    while (nodes.length > 1) {
+        let next = [];
+        for (let i = 0; i < nodes.length; i += 2) {
+            next.push(i + 1 < nodes.length ? { left: nodes[i], right: nodes[i + 1] } : nodes[i]);
+        }
+        nodes = next;
+    }
+    return nodes[0];
+}
+
+// Walks post-order depth-first, smallest to largest. Where one side of a node is an
+// absent subtree and the other is not, the absent side's hash comes from nextHash.
+function resolveNode(node, nextHash) {
+    if (node.left === undefined) {
+        return node.hash === undefined ? OMITTED_SUBTREE : node.hash;
+    }
+    let left = resolveNode(node.left, nextHash);
+    let right = resolveNode(node.right, nextHash);
+    if (left === OMITTED_SUBTREE && right === OMITTED_SUBTREE) return OMITTED_SUBTREE;
+    if (left === OMITTED_SUBTREE) return branchNode(nextHash(), right);
+    if (right === OMITTED_SUBTREE) return branchNode(left, nextHash());
+    return branchNode(left, right);
+}
+
+// Rebuilds a root from leaves where some are absent. Each leaf is either { hash } for a
+// present record or {} for an absent one. Every hash in missingHashes must be consumed.
+function reconstructRoot(leaves, missingHashes) {
+    let at = 0;
+    let nextHash = function () {
+        if (at >= missingHashes.length) {
+            throw new Error('Malformed request: too few proof_missing_hashes to rebuild the tree');
+        }
+        return missingHashes[at++];
+    };
+
+    let root = resolveNode(buildTree(leaves), nextHash);
+    if (root === OMITTED_SUBTREE) {
+        throw new Error('Malformed request: every tlv in the tree is omitted');
+    }
+    if (at !== missingHashes.length) {
+        throw new Error('Malformed request: ' + (missingHashes.length - at)
+            + ' unused proof_missing_hashes');
+    }
+    return root;
+}

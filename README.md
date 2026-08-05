@@ -36,11 +36,13 @@ breakdown of the raw request, and the decoded JSON.
 ## Not yet supported
 
 BOLT 12 invoice requests (`lnr`) and payer proofs (`lnp`) are recognised and reported as
-unsupported rather than mis-parsed. Both are signed forms, so they need the BIP-340 Schnorr
-and merkle-root layer that isn't built yet.
+unsupported rather than mis-parsed. The merkle-root and BIP-340 Schnorr layers both forms
+need are built, and payer proof decoding and verification are implemented; neither prefix is
+wired into the page yet.
 
-BOLT 12 invoices have no bech32 prefix at all — they travel over onion messages — so there
-is nothing for a string decoder to accept.
+BOLT 12 defines human-readable prefixes for those three forms only. Invoices normally travel
+over onion messages rather than as strings, and the spec defines no prefix for them — though
+its own payer proof test vectors serialise invoices as `lni1…`, as some implementations do.
 
 ## URL parameter
 
