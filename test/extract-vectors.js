@@ -1,4 +1,4 @@
-// Re-vendors every test vector from the lightning/bolts repository.
+// Re-vendors every test vector from the lightning/bolts and bitcoin/bips repositories.
 //
 //   npm run vectors
 //
@@ -7,18 +7,24 @@
 //   test/vectors/format-string.json     BOLT 12 string format
 //   test/vectors/offers.json            BOLT 12 offers
 //   test/vectors/signature.json         BOLT 12 merkle trees and signature hashes
+//   test/vectors/bip340.json            BIP-340 Schnorr, from the bitcoin/bips csv
 //   test/vectors/bigsize.json           BigSize, from a fenced block in BOLT 1
 
 const fs = require('fs');
 const path = require('path');
 
 const RAW = 'https://raw.githubusercontent.com/lightning/bolts/master/';
+const BIPS_RAW = 'https://raw.githubusercontent.com/bitcoin/bips/master/';
 const OUT_DIR = path.join(__dirname, 'vectors');
 
-async function fetchText(file) {
-    const res = await fetch(RAW + file);
+async function fetchFrom(base, file) {
+    const res = await fetch(base + file);
     if (!res.ok) throw new Error(`fetch ${file} failed: ${res.status} ${res.statusText}`);
     return res.text();
+}
+
+async function fetchText(file) {
+    return fetchFrom(RAW, file);
 }
 
 // --- BOLT 11: a blockquote heading followed by a blockquote line holding one long
@@ -129,6 +135,50 @@ async function writeBigSize() {
     return `bigsize.json: ${merged.length} vectors from ${blocks.length} block(s)`;
 }
 
+// --- BIP-340: the Schnorr suite BOLT 12 signatures are defined against ----------
+
+async function writeBip340() {
+    const source = 'bip-0340/test-vectors.csv';
+    // The csv uses CRLF, which would otherwise leave a carriage return on each last field.
+    const lines = (await fetchFrom(BIPS_RAW, source)).trim().split(/\r?\n/);
+    const columns = lines[0].split(',');
+    const wanted = ['index', 'public key', 'message', 'signature', 'verification result', 'comment'];
+    const at = wanted.map(name => {
+        const index = columns.indexOf(name);
+        if (index === -1) throw new Error(`BIP-340 csv has no "${name}" column`);
+        return index;
+    });
+
+    const vectors = lines.slice(1).map(line => {
+        const fields = line.split(',');
+        if (fields.length !== columns.length) {
+            throw new Error(`BIP-340 csv row has ${fields.length} fields, expected ${columns.length}`);
+        }
+        const [index, publicKey, message, signature, result, comment] = at.map(i => fields[i]);
+        if (result !== 'TRUE' && result !== 'FALSE') {
+            throw new Error(`BIP-340 row ${index} has an unexpected result "${result}"`);
+        }
+        return {
+            index: Number(index),
+            public_key: publicKey.toLowerCase(),
+            message: message.toLowerCase(),
+            signature: signature.toLowerCase(),
+            valid: result === 'TRUE',
+            comment: comment
+        };
+    });
+
+    if (vectors.length < 19) {
+        throw new Error(`BIP-340 csv looks wrong: ${vectors.length} vectors`);
+    }
+    if (!vectors.some(v => v.valid) || !vectors.some(v => !v.valid)) {
+        throw new Error('BIP-340 vectors should include both valid and invalid cases');
+    }
+    fs.writeFileSync(path.join(OUT_DIR, 'bip340.json'), JSON.stringify(vectors, null, 2) + '\n');
+    const valid = vectors.filter(v => v.valid).length;
+    return `bip340.json: ${vectors.length} vectors, ${valid} valid, ${vectors.length - valid} invalid`;
+}
+
 (async () => {
     fs.mkdirSync(OUT_DIR, { recursive: true });
     const results = [
@@ -136,6 +186,7 @@ async function writeBigSize() {
         await writeJson('bolt12/format-string-test.json', 'format-string.json', 12),
         await writeJson('bolt12/offers-test.json', 'offers.json', 50),
         await writeJson('bolt12/signature-test.json', 'signature.json', 4),
+        await writeBip340(),
         await writeBigSize()
     ];
     for (const r of results) console.log('  ' + r);
