@@ -1,12 +1,17 @@
 {
   "name": "lndecode",
   "version": "1.0.0",
-  "description": "Pure JavaScript BOLT 11 Lightning invoice decoder",
+  "description": "Pure JavaScript BOLT 11 and BOLT 12 Lightning request decoder",
   "license": "MIT",
   "private": true,
   "scripts": {
     "test": "node --test test/*.test.js",
+    "lint": "eslint .",
     "vectors": "node test/extract-vectors.js",
     "vendor": "node tools/vendor-secp256k1.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0"
   }
 }

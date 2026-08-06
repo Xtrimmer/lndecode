@@ -21,13 +21,13 @@ function rotateRight32(value, bits) {
 
 // Appends the 0x80 marker, zero padding, and the 64-bit big-endian bit length.
 function sha256Pad(bytes) {
-    let padded = Array.prototype.slice.call(bytes);
+    const padded = Array.prototype.slice.call(bytes);
     padded.push(0x80);
     while (padded.length % 64 !== 56) {
         padded.push(0);
     }
-    let high = Math.floor(bytes.length / 536870912);
-    let low = (bytes.length * 8) >>> 0;
+    const high = Math.floor(bytes.length / 536870912);
+    const low = (bytes.length * 8) >>> 0;
     padded.push((high >>> 24) & 255, (high >>> 16) & 255, (high >>> 8) & 255, high & 255);
     padded.push((low >>> 24) & 255, (low >>> 16) & 255, (low >>> 8) & 255, low & 255);
     return padded;
@@ -36,17 +36,17 @@ function sha256Pad(bytes) {
 // Returns the digest as an array of 32 bytes.
 function sha256(bytes) {
     let hash = SHA256_INITIAL.slice();
-    let padded = sha256Pad(bytes);
-    let w = new Array(64);
+    const padded = sha256Pad(bytes);
+    const w = new Array(64);
 
     for (let block = 0; block < padded.length; block += 64) {
         for (let i = 0; i < 16; i++) {
-            let at = block + i * 4;
+            const at = block + i * 4;
             w[i] = ((padded[at] << 24) | (padded[at + 1] << 16) | (padded[at + 2] << 8) | padded[at + 3]) >>> 0;
         }
         for (let i = 16; i < 64; i++) {
-            let s0 = rotateRight32(w[i - 15], 7) ^ rotateRight32(w[i - 15], 18) ^ (w[i - 15] >>> 3);
-            let s1 = rotateRight32(w[i - 2], 17) ^ rotateRight32(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+            const s0 = rotateRight32(w[i - 15], 7) ^ rotateRight32(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+            const s1 = rotateRight32(w[i - 2], 17) ^ rotateRight32(w[i - 2], 19) ^ (w[i - 2] >>> 10);
             w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
         }
 
@@ -54,12 +54,12 @@ function sha256(bytes) {
         let e = hash[4], f = hash[5], g = hash[6], h = hash[7];
 
         for (let i = 0; i < 64; i++) {
-            let sigma1 = rotateRight32(e, 6) ^ rotateRight32(e, 11) ^ rotateRight32(e, 25);
-            let choose = (e & f) ^ (~e & g);
-            let t1 = (h + sigma1 + choose + SHA256_K[i] + w[i]) >>> 0;
-            let sigma0 = rotateRight32(a, 2) ^ rotateRight32(a, 13) ^ rotateRight32(a, 22);
-            let majority = (a & b) ^ (a & c) ^ (b & c);
-            let t2 = (sigma0 + majority) >>> 0;
+            const sigma1 = rotateRight32(e, 6) ^ rotateRight32(e, 11) ^ rotateRight32(e, 25);
+            const choose = (e & f) ^ (~e & g);
+            const t1 = (h + sigma1 + choose + SHA256_K[i] + w[i]) >>> 0;
+            const sigma0 = rotateRight32(a, 2) ^ rotateRight32(a, 13) ^ rotateRight32(a, 22);
+            const majority = (a & b) ^ (a & c) ^ (b & c);
+            const t2 = (sigma0 + majority) >>> 0;
 
             h = g;
             g = f;
@@ -77,7 +77,7 @@ function sha256(bytes) {
         ];
     }
 
-    let digest = [];
+    const digest = [];
     for (const word of hash) {
         digest.push((word >>> 24) & 255, (word >>> 16) & 255, (word >>> 8) & 255, word & 255);
     }

@@ -90,9 +90,7 @@ async function writeBolt11() {
         `// INVALID_VECTORS - a conforming reader MUST reject these.\n\n`;
 
     fs.writeFileSync(path.join(__dirname, 'vectors.js'),
-        header +
-        serialize('VALID_VECTORS', valid) + '\n' +
-        serialize('INVALID_VECTORS', invalid) + '\n' +
+        `${header + serialize('VALID_VECTORS', valid)}\n${serialize('INVALID_VECTORS', invalid)}\n` +
         `module.exports = { VALID_VECTORS, INVALID_VECTORS };\n`
     );
     return `vectors.js: ${valid.length} valid, ${invalid.length} invalid`;
@@ -105,7 +103,7 @@ async function writeJson(source, outName, expected) {
     if (!Array.isArray(parsed) || parsed.length < expected) {
         throw new Error(`${source} looks wrong: ${parsed.length} entries, expected at least ${expected}`);
     }
-    fs.writeFileSync(path.join(OUT_DIR, outName), JSON.stringify(parsed, null, 2) + '\n');
+    fs.writeFileSync(path.join(OUT_DIR, outName), `${JSON.stringify(parsed, null, 2)}\n`);
     return `${outName}: ${parsed.length} vectors`;
 }
 
@@ -132,7 +130,7 @@ async function writeBigSize() {
     if (!merged.every(v => typeof v.value === 'string')) {
         throw new Error('BigSize values should all have been quoted');
     }
-    fs.writeFileSync(path.join(OUT_DIR, 'bigsize.json'), JSON.stringify(merged, null, 2) + '\n');
+    fs.writeFileSync(path.join(OUT_DIR, 'bigsize.json'), `${JSON.stringify(merged, null, 2)}\n`);
     return `bigsize.json: ${merged.length} vectors from ${blocks.length} block(s)`;
 }
 
@@ -148,7 +146,7 @@ async function writePayerProof() {
         throw new Error(`${source} looks wrong: ${parsed.valid_vectors.length} valid, `
             + `${parsed.invalid_vectors.length} invalid`);
     }
-    fs.writeFileSync(path.join(OUT_DIR, 'payer-proof.json'), JSON.stringify(parsed, null, 2) + '\n');
+    fs.writeFileSync(path.join(OUT_DIR, 'payer-proof.json'), `${JSON.stringify(parsed, null, 2)}\n`);
     return `payer-proof.json: ${parsed.valid_vectors.length} valid, `
         + `${parsed.invalid_vectors.length} invalid`;
 }
@@ -182,7 +180,7 @@ async function writeBip340() {
             message: message.toLowerCase(),
             signature: signature.toLowerCase(),
             valid: result === 'TRUE',
-            comment: comment
+            comment
         };
     });
 
@@ -192,7 +190,7 @@ async function writeBip340() {
     if (!vectors.some(v => v.valid) || !vectors.some(v => !v.valid)) {
         throw new Error('BIP-340 vectors should include both valid and invalid cases');
     }
-    fs.writeFileSync(path.join(OUT_DIR, 'bip340.json'), JSON.stringify(vectors, null, 2) + '\n');
+    fs.writeFileSync(path.join(OUT_DIR, 'bip340.json'), `${JSON.stringify(vectors, null, 2)}\n`);
     const valid = vectors.filter(v => v.valid).length;
     return `bip340.json: ${vectors.length} vectors, ${valid} valid, ${vectors.length - valid} invalid`;
 }
@@ -208,5 +206,5 @@ async function writeBip340() {
         await writeBip340(),
         await writeBigSize()
     ];
-    for (const r of results) console.log('  ' + r);
+    for (const r of results) console.log(`  ${r}`);
 })();

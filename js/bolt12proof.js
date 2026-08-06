@@ -53,10 +53,10 @@ const REQUIRED_PROOF_TYPES = [
 // Types at or above a billion are the self-assigned experimental range, so they have no
 // spec name to look up.
 function proofFieldName(type) {
-    let name = PROOF_FIELD_NAMES.get(type);
+    const name = PROOF_FIELD_NAMES.get(type);
     if (name !== undefined) return name;
-    if (type >= MARKER_CUSTOM_RANGE_START) return 'experimental_' + type.toString();
-    return 'unknown_' + type.toString();
+    if (type >= MARKER_CUSTOM_RANGE_START) return `experimental_${type.toString()}`;
+    return `unknown_${type.toString()}`;
 }
 
 function isSignatureType(type) {
@@ -70,9 +70,9 @@ function inProofTreeRanges(type) {
 // Splits a value into 32-byte hashes, requiring an exact multiple.
 function splitHashes(bytes, what) {
     if (bytes.length === 0 || bytes.length % HASH_LENGTH !== 0) {
-        throw new Error('Malformed request: ' + what + ' must be a whole number of 32-byte hashes');
+        throw new Error(`Malformed request: ${what} must be a whole number of 32-byte hashes`);
     }
-    let hashes = [];
+    const hashes = [];
     for (let at = 0; at < bytes.length; at += HASH_LENGTH) {
         hashes.push(bytes.slice(at, at + HASH_LENGTH));
     }
@@ -80,8 +80,8 @@ function splitHashes(bytes, what) {
 }
 
 function readMarkers(bytes) {
-    let reader = byteReader(bytes);
-    let markers = [];
+    const reader = byteReader(bytes);
+    const markers = [];
     while (reader.remaining() > 0) {
         markers.push(reader.readBigSize('proof_omitted_tlvs entry'));
     }
@@ -101,20 +101,17 @@ function requireValidMarkers(markers, includedTypes) {
             throw new Error('Malformed request: proof_omitted_tlvs must strictly increase');
         }
         if (!inProofTreeRanges(marker)) {
-            throw new Error('Malformed request: proof_omitted_tlvs entry ' + marker
-                + ' is outside 1 to 239 and 1000000000 to 3999999999');
+            throw new Error(`Malformed request: proof_omitted_tlvs entry ${marker} is outside 1 to 239 and 1000000000 to 3999999999`);
         }
         if (includedTypes.has(marker)) {
-            throw new Error('Malformed request: proof_omitted_tlvs entry ' + marker
-                + ' is the type of an included field');
+            throw new Error(`Malformed request: proof_omitted_tlvs entry ${marker} is the type of an included field`);
         }
-        let sequential = marker === previous + 1n;
-        let afterIncluded = includedTypes.has(marker - 1n);
-        let entersCustomRange = marker === MARKER_CUSTOM_RANGE_START
+        const sequential = marker === previous + 1n;
+        const afterIncluded = includedTypes.has(marker - 1n);
+        const entersCustomRange = marker === MARKER_CUSTOM_RANGE_START
             && previous === MARKER_LOW_RANGE_END;
         if (!sequential && !afterIncluded && !entersCustomRange) {
-            throw new Error('Malformed request: proof_omitted_tlvs entry ' + marker
-                + ' does not follow the previous entry or an included field');
+            throw new Error(`Malformed request: proof_omitted_tlvs entry ${marker} does not follow the previous entry or an included field`);
         }
         previous = marker;
     }
@@ -124,71 +121,70 @@ function requireValidMarkers(markers, includedTypes) {
 // supplied by the proof, because the nonce tag needs invreq_metadata, which is absent.
 function reconstructInvoiceRoot(treeRecords, leafHashes, missingHashes, markers) {
     if (leafHashes.length !== treeRecords.length) {
-        throw new Error('Malformed request: proof_leaf_hashes has ' + leafHashes.length
-            + ' hashes for ' + treeRecords.length + ' disclosed fields');
+        throw new Error(`Malformed request: proof_leaf_hashes has ${leafHashes.length} hashes for ${treeRecords.length} disclosed fields`);
     }
 
-    let leaves = treeRecords.map((record, at) => ({
+    const leaves = treeRecords.map((record, at) => ({
         key: record.type,
         hash: branchNode(leafHash(record.tlv), leafHashes[at])
     }));
     // Type 0 is always omitted, so it is implied rather than carried in the markers.
-    let absent = [INVREQ_METADATA_TYPE].concat(markers).map(key => ({ key: key }));
+    const absent = [INVREQ_METADATA_TYPE].concat(markers).map(key => ({ key }));
 
-    let slots = leaves.concat(absent);
+    const slots = leaves.concat(absent);
     slots.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     return reconstructRoot(slots, missingHashes);
 }
 
 function decodePayerProof(request) {
-    let split = bolt12ToBytes(request);
+    const split = bolt12ToBytes(request);
     if (split.prefix !== 'lnp') {
-        throw new Error('Malformed request: expected an lnp payer proof, got ' + split.prefix);
+        throw new Error(`Malformed request: expected an lnp payer proof, got ${split.prefix}`);
     }
 
-    let records = parseTlvStream(split.bytes);
-    let byType = new Map(records.map(record => [record.type, record]));
+    const records = parseTlvStream(split.bytes);
+    const byType = new Map(records.map(record => [record.type, record]));
 
     for (const [type, name] of REQUIRED_PROOF_TYPES) {
         if (!byType.has(type)) {
-            throw new Error('Malformed request: payer proof is missing ' + name);
+            throw new Error(`Malformed request: payer proof is missing ${name}`);
         }
     }
     if (byType.has(INVREQ_METADATA_TYPE)) {
         throw new Error('Malformed request: payer proof must not include invreq_metadata');
     }
 
-    let preimage = byType.get(PROOF_PREIMAGE_TYPE).value;
+    const preimage = byType.get(PROOF_PREIMAGE_TYPE).value;
     if (preimage.length !== PREIMAGE_LENGTH) {
         throw new Error('Malformed request: proof_preimage must be 32 bytes');
     }
-    let paymentHash = byType.get(168n).value;
+    const paymentHash = byType.get(168n).value;
     if (byteArrayToHexString(sha256(preimage)) !== byteArrayToHexString(paymentHash)) {
         throw new Error('Malformed request: proof_preimage does not hash to invoice_payment_hash');
     }
 
-    let treeRecords = records.filter(record => inProofTreeRanges(record.type));
-    let includedTypes = new Set(treeRecords.map(record => record.type));
-    let markers = byType.has(PROOF_OMITTED_TLVS_TYPE)
+    const treeRecords = records.filter(record => inProofTreeRanges(record.type));
+    const includedTypes = new Set(treeRecords.map(record => record.type));
+    const markers = byType.has(PROOF_OMITTED_TLVS_TYPE)
         ? readMarkers(byType.get(PROOF_OMITTED_TLVS_TYPE).value)
         : [];
     requireValidMarkers(markers, includedTypes);
 
-    let leafHashes = splitHashes(byType.get(PROOF_LEAF_HASHES_TYPE).value, 'proof_leaf_hashes');
-    let missingHashes = splitHashes(byType.get(PROOF_MISSING_HASHES_TYPE).value,
+    const leafHashes = splitHashes(byType.get(PROOF_LEAF_HASHES_TYPE).value, 'proof_leaf_hashes');
+    const missingHashes = splitHashes(byType.get(PROOF_MISSING_HASHES_TYPE).value,
         'proof_missing_hashes');
 
-    let invoiceRoot = reconstructInvoiceRoot(treeRecords, leafHashes, missingHashes, markers);
-    let nodeId = byType.get(176n).value;
-    let invoiceSighash = signatureHash('invoice', 'signature', invoiceRoot);
+    const invoiceRoot = reconstructInvoiceRoot(treeRecords, leafHashes, missingHashes, markers);
+    const nodeId = byType.get(176n).value;
+    const invoiceSighash = signatureHash('invoice', 'signature', invoiceRoot);
     if (!verifyBolt12Signature(byType.get(SIGNATURE_TYPE).value, invoiceSighash, nodeId)) {
         throw new Error('Malformed request: signature does not verify against invoice_node_id');
     }
 
-    let payerId = byType.get(88n).value;
-    let proofSigned = Array.from(records).filter(record => !isSignatureType(record.type));
-    let proofRoot = merkleRoot(proofSigned.map(record => record.tlv));
-    let proofSighash = signatureHash('payer_proof', 'proof_signature', proofRoot);
+    const payerId = byType.get(88n).value;
+    const proofSigned = Array.from(records).filter(record => !isSignatureType(record.type));
+    const proofRoot = merkleRoot(proofSigned.map(record => record.tlv));
+    const proofSighash = signatureHash('payer_proof', 'proof_signature', proofRoot);
     if (!verifyBolt12Signature(byType.get(PROOF_SIGNATURE_TYPE).value, proofSighash, payerId)) {
         throw new Error('Malformed request: proof_signature does not verify against invreq_payer_id');
     }

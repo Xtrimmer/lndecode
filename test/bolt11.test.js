@@ -51,7 +51,7 @@ describe('human-readable part', () => {
 
     test('known prefixes are accepted', () => {
         for (const prefix of ['lnbc', 'lntb', 'lnbcrt', 'lntbs']) {
-            assert.doesNotThrow(() => lndecode.decodeHumanReadablePart(prefix + '25m'), prefix);
+            assert.doesNotThrow(() => lndecode.decodeHumanReadablePart(`${prefix}25m`), prefix);
         }
     });
 });
@@ -112,7 +112,7 @@ describe('structural validation', () => {
 
     test('a data part one character short is rejected', () => {
         // 7 timestamp + 104 signature is the minimum
-        assert.throws(() => lndecode.decode('lnbc1' + 'q'.repeat(110) + 'qqqqqq'), /too short/i);
+        assert.throws(() => lndecode.decode(`lnbc1${'q'.repeat(110)}qqqqqq`), /too short/i);
     });
 
     test('a missing separator is reported as such', () => {

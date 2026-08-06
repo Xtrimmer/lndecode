@@ -19,7 +19,7 @@ const ADDRESS_ENCODINGS = new Map([
 ]);
 
 function base58Encode(bytes) {
-    let digits = [0];
+    const digits = [0];
     for (const byte of bytes) {
         let carry = byte;
         for (let i = 0; i < digits.length; i++) {
@@ -46,13 +46,13 @@ function base58Encode(bytes) {
 
 // Appends the first four bytes of the double SHA-256 as a checksum.
 function base58CheckEncode(bytes) {
-    let checksum = sha256(sha256(bytes)).slice(0, 4);
+    const checksum = sha256(sha256(bytes)).slice(0, 4);
     return base58Encode(bytes.concat(checksum));
 }
 
 function bech32Checksum(hrp, values, constant) {
-    let residue = polymod(expand(hrp).concat(values).concat([0, 0, 0, 0, 0, 0])) ^ constant;
-    let checksum = [];
+    const residue = polymod(expand(hrp).concat(values).concat([0, 0, 0, 0, 0, 0])) ^ constant;
+    const checksum = [];
     for (let i = 0; i < 6; i++) {
         checksum.push((residue >> (5 * (5 - i))) & 31);
     }
@@ -60,8 +60,8 @@ function bech32Checksum(hrp, values, constant) {
 }
 
 function bech32Encode(hrp, values, constant) {
-    let payload = values.concat(bech32Checksum(hrp, values, constant));
-    let encoded = hrp + '1';
+    const payload = values.concat(bech32Checksum(hrp, values, constant));
+    let encoded = `${hrp}1`;
     for (const value of payload) {
         encoded += bech32CharValues.charAt(value);
     }
@@ -71,14 +71,14 @@ function bech32Encode(hrp, values, constant) {
 // Renders a fallback address. Versions 17 and 18 are base58check; 0 to 16 are segwit,
 // using bech32 for version 0 and bech32m above it.
 function fallbackAddress(version, fiveBitProgram, prefix) {
-    let encoding = ADDRESS_ENCODINGS.get(prefix);
+    const encoding = ADDRESS_ENCODINGS.get(prefix);
     if (encoding === undefined) return undefined;
 
     if (version === FALLBACK_P2PKH_VERSION || version === FALLBACK_P2SH_VERSION) {
-        let versionByte = version === FALLBACK_P2PKH_VERSION ? encoding.p2pkh : encoding.p2sh;
+        const versionByte = version === FALLBACK_P2PKH_VERSION ? encoding.p2pkh : encoding.p2sh;
         return base58CheckEncode([versionByte].concat(fiveBitArrayTo8BitArray(fiveBitProgram)));
     }
 
-    let constant = version === 0 ? BECH32_CONSTANT : BECH32M_CONSTANT;
+    const constant = version === 0 ? BECH32_CONSTANT : BECH32M_CONSTANT;
     return bech32Encode(encoding.hrp, [version].concat(fiveBitProgram), constant);
 }

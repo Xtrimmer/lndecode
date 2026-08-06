@@ -14,7 +14,6 @@ const SIGNATURE_VECTORS = require('./vectors/signature.json');
 const lndecode = load();
 
 const hex = bytes => lndecode.byteArrayToHexString(bytes);
-const bytes = string => lndecode.hexStringToByteArray(string);
 
 const VECTOR = SIGNATURE_VECTORS.find(v => v.bolt12 !== undefined);
 
@@ -63,7 +62,7 @@ function toFiveBit(byteArray) {
 const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
 
 function encodeBolt12(prefix, byteArray) {
-    return prefix + '1' + toFiveBit(byteArray).map(v => CHARSET.charAt(v)).join('');
+    return `${prefix}1${toFiveBit(byteArray).map(v => CHARSET.charAt(v)).join('')}`;
 }
 
 function rebuild(list, prefix) {
@@ -75,7 +74,7 @@ function without(type) {
 }
 
 function withRecord(type, value) {
-    return without(type).concat([{ type: BigInt(type), value: value }]);
+    return without(type).concat([{ type: BigInt(type), value }]);
 }
 
 describe('the encoder used to build negative cases', () => {

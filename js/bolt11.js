@@ -12,31 +12,30 @@ function decode(paymentRequest) {
         throw new Error('Invalid input: payment request must be a string');
     }
 
-    let stripped = paymentRequest.replace(/\s+/g, '');
+    const stripped = paymentRequest.replace(/\s+/g, '');
     requireConsistentCase(stripped);
 
-    let input = stripped.toLowerCase();
-    let splitPosition = input.lastIndexOf('1');
+    const input = stripped.toLowerCase();
+    const splitPosition = input.lastIndexOf('1');
     if (splitPosition < 1) {
         throw new Error('Malformed request: missing separator');
     }
-    let humanReadablePart = input.substring(0, splitPosition);
-    let data = input.substring(splitPosition + 1, input.length - 6);
-    let checksum = input.substring(input.length - 6, input.length);
+    const humanReadablePart = input.substring(0, splitPosition);
+    const data = input.substring(splitPosition + 1, input.length - 6);
+    const checksum = input.substring(input.length - 6, input.length);
     if (data.length < TIMESTAMP_LENGTH + SIGNATURE_LENGTH) {
-        throw new Error('Malformed request: data part is too short at ' + data.length
-            + ' characters, needs at least ' + (TIMESTAMP_LENGTH + SIGNATURE_LENGTH));
+        throw new Error(`Malformed request: data part is too short at ${data.length} characters, needs at least ${TIMESTAMP_LENGTH + SIGNATURE_LENGTH}`);
     }
     if (!verify_checksum(humanReadablePart, bech32ToFiveBitArray(data + checksum))) {
         throw new Error('Malformed request: checksum is incorrect'); // A reader MUST fail if the checksum is incorrect.
     }
-    let decodedData = decodeData(data, humanReadablePart);
+    const decodedData = decodeData(data, humanReadablePart);
     verifySignature(decodedData);
-    let humanReadable = decodeHumanReadablePart(humanReadablePart);
+    const humanReadable = decodeHumanReadablePart(humanReadablePart);
     return {
         'human_readable_part': humanReadable,
         'data': decodedData,
-        'checksum': checksum,
+        checksum,
         'raw_parts': rawParts(humanReadablePart, humanReadable.prefix, data, checksum)
     }
 }
@@ -44,19 +43,19 @@ function decode(paymentRequest) {
 // The request split into the character groups it is written from. Concatenating every
 // part reproduces the request.
 function rawParts(humanReadablePart, prefix, data, checksum) {
-    let parts = [{ 'name': 'prefix', 'chars': prefix }];
+    const parts = [{ 'name': 'prefix', 'chars': prefix }];
 
-    let amountChars = humanReadablePart.substring(prefix.length);
+    const amountChars = humanReadablePart.substring(prefix.length);
     if (amountChars.length > 0) {
         parts.push({ 'name': 'amount', 'chars': amountChars });
     }
     parts.push({ 'name': 'separator', 'chars': '1' });
     parts.push({ 'name': 'timestamp', 'chars': data.substring(0, TIMESTAMP_LENGTH) });
 
-    let tagData = data.substring(TIMESTAMP_LENGTH, data.length - SIGNATURE_LENGTH);
+    const tagData = data.substring(TIMESTAMP_LENGTH, data.length - SIGNATURE_LENGTH);
     for (const tag of extractTags(tagData)) {
         parts.push({
-            'name': 'tagged field ' + tag.type,
+            'name': `tagged field ${tag.type}`,
             'type': tag.type,
             'length_chars': tag.length_chars,
             'data_length': tag.length,
@@ -82,7 +81,7 @@ function rawPartsToString(parts) {
 // Compares an invoice's description_hash against a description supplied by the caller.
 // A reader must check the two match; the description is not carried in the invoice.
 function descriptionMatchesHash(paymentRequest, description) {
-    let hashField = decode(paymentRequest).data.tags.find(tag => tag.type === 'h');
+    const hashField = decode(paymentRequest).data.tags.find(tag => tag.type === 'h');
     if (hashField === undefined) {
         throw new Error('Invalid input: this request has no description hash');
     }
@@ -92,12 +91,12 @@ function descriptionMatchesHash(paymentRequest, description) {
 // With an 'n' field the signature must verify against that key and must be low-S.
 // Without one, the key is recovered, and both high-S and low-S are accepted.
 function verifySignature(data) {
-    let hash = new Uint8Array(sha256(hexStringToByteArray(data.signing_data)));
-    let compact = new Uint8Array(hexStringToByteArray(data.signature.r + data.signature.s));
-    let payeeKey = data.tags.find(tag => tag.type === 'n');
+    const hash = new Uint8Array(sha256(hexStringToByteArray(data.signing_data)));
+    const compact = new Uint8Array(hexStringToByteArray(data.signature.r + data.signature.s));
+    const payeeKey = data.tags.find(tag => tag.type === 'n');
 
     if (payeeKey !== undefined) {
-        let key = new Uint8Array(hexStringToByteArray(payeeKey.value));
+        const key = new Uint8Array(hexStringToByteArray(payeeKey.value));
         if (!secp256k1.verify(compact, hash, key, { prehash: false })) {
             throw new Error('Malformed request: signature does not verify against the payee public key');
         }
@@ -105,39 +104,40 @@ function verifySignature(data) {
         return;
     }
 
-    let recoverable = new Uint8Array(
+    const recoverable = new Uint8Array(
         [data.signature.recovery_flag].concat(hexStringToByteArray(data.signature.r + data.signature.s)));
     let recovered;
     try {
         recovered = secp256k1.recoverPublicKey(recoverable, hash, { prehash: false });
-    } catch (e) {
-        throw new Error('Malformed request: signature is not recoverable');
+    } catch (cause) {
+        throw new Error('Malformed request: signature is not recoverable', { cause });
     }
     data.signature.payee_public_key = byteArrayToHexString(recovered);
 }
 
 function decodeHumanReadablePart(humanReadablePart) {
-    let prefixes = ['lnbc', 'lntb', 'lnbcrt', 'lnsb', 'lntbs'];
+    const prefixes = ['lnbc', 'lntb', 'lnbcrt', 'lnsb', 'lntbs'];
     let prefix;
     prefixes.forEach(value => {
         if (humanReadablePart.substring(0, value.length) === value) {
             prefix = value;
         }
     });
-    if (prefix == null) throw new Error('Malformed request: unknown prefix'); // A reader MUST fail if it does not understand the prefix.
-    let amount = decodeAmount(humanReadablePart.substring(prefix.length, humanReadablePart.length));
+    // A reader MUST fail if it does not understand the prefix.
+    if (prefix === undefined) throw new Error('Malformed request: unknown prefix');
+    const amount = decodeAmount(humanReadablePart.substring(prefix.length, humanReadablePart.length));
     return {
-        'prefix': prefix,
-        'amount': amount
+        prefix,
+        amount
     }
 }
 
 function decodeData(data, humanReadablePart) {
-    let date32 = data.substring(0, 7);
-    let dateEpoch = bech32ToInt(date32);
-    let signature = data.substring(data.length - 104, data.length);
-    let tagData = data.substring(7, data.length - 104);
-    let decodedTags = decodeTags(tagData, readPrefix(humanReadablePart));
+    const date32 = data.substring(0, 7);
+    const dateEpoch = bech32ToInt(date32);
+    const signature = data.substring(data.length - 104, data.length);
+    const tagData = data.substring(7, data.length - 104);
+    const decodedTags = decodeTags(tagData, readPrefix(humanReadablePart));
     validateTags(decodedTags);
     let value = bech32ToFiveBitArray(date32 + tagData);
     value = fiveBitArrayTo8BitArray(value, true);
@@ -152,10 +152,10 @@ function decodeData(data, humanReadablePart) {
 
 // An 'r' field carries one or more 51-byte hops.
 function decodeRoutingInformation(data) {
-    let bytes = fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data));
-    let hops = [];
+    const bytes = fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data));
+    const hops = [];
     for (let offset = 0; offset + ROUTE_HOP_LENGTH <= bytes.length; offset += ROUTE_HOP_LENGTH) {
-        let hop = bytes.slice(offset, offset + ROUTE_HOP_LENGTH);
+        const hop = bytes.slice(offset, offset + ROUTE_HOP_LENGTH);
         hops.push({
             'public_key': byteArrayToHexString(hop.slice(0, 33)),
             'short_channel_id': byteArrayToHexString(hop.slice(33, 41)),
@@ -168,23 +168,23 @@ function decodeRoutingInformation(data) {
 }
 
 function decodeSignature(signature) {
-    let data = fiveBitArrayTo8BitArray(bech32ToFiveBitArray(signature));
-    let recoveryFlag = data[data.length - 1];
-    let r = byteArrayToHexString(data.slice(0, 32));
-    let s = byteArrayToHexString(data.slice(32, data.length - 1));
+    const data = fiveBitArrayTo8BitArray(bech32ToFiveBitArray(signature));
+    const recoveryFlag = data[data.length - 1];
+    const r = byteArrayToHexString(data.slice(0, 32));
+    const s = byteArrayToHexString(data.slice(32, data.length - 1));
     return {
-        'r': r,
-        's': s,
+        r,
+        s,
         'recovery_flag': recoveryFlag
     }
 }
 
 function decodeAmount(str) {
-    if (str.length == 0)
-    {
-        return 'Any amount' // A reader SHOULD indicate if amount is unspecified
+    // A reader SHOULD indicate if amount is unspecified.
+    if (str.length === 0) {
+        return 'Any amount';
     }
-    let multiplier = isDigit(str.charAt(str.length - 1)) ? '-' : str.charAt(str.length - 1);
+    const multiplier = isDigit(str.charAt(str.length - 1)) ? '-' : str.charAt(str.length - 1);
     let amount = multiplier === '-' ? str : str.substring(0, str.length - 1);
     if (amount.substring(0, 1) === '0') {
         throw new Error('Malformed request: amount cannot contain leading zeros');
@@ -230,7 +230,7 @@ function validateTags(decodedTags) {
     if (!decodedTags.some(tag => tag.type === 's')) {
         throw new Error('Malformed request: payment secret is required');
     }
-    let features = decodedTags.find(tag => tag.type === '9');
+    const features = decodedTags.find(tag => tag.type === '9');
     if (features !== undefined) {
         validateFeatureBits(features.value);
     }
@@ -242,30 +242,30 @@ function validateFeatureBits(binaryString) {
         if (binaryString.charAt(binaryString.length - 1 - bit) !== '1') continue;
         // A reader MUST ignore unknown odd bits, and MUST fail on unknown even bits.
         if (bit % 2 === 0 && !KNOWN_FEATURE_BITS.has(bit)) {
-            throw new Error('Malformed request: unknown even feature bit ' + bit);
+            throw new Error(`Malformed request: unknown even feature bit ${bit}`);
         }
     }
 }
 
 function decodeTags(tagData, prefix) {
-    let tags = extractTags(tagData);
-    let decodedTags = [];
+    const tags = extractTags(tagData);
+    const decodedTags = [];
     tags.forEach(value => decodedTags.push(decodeTag(value.type, value.length, value.data, prefix)));
     return decodedTags.filter(t => t !== undefined);
 }
 
 function extractTags(str) {
-    let tags = [];
+    const tags = [];
     while (str.length > 0) {
-        let type = str.charAt(0);
-        let lengthChars = str.substring(1, 3);
-        let dataLength = bech32ToInt(lengthChars);
-        let data = str.substring(3, dataLength + 3);
+        const type = str.charAt(0);
+        const lengthChars = str.substring(1, 3);
+        const dataLength = bech32ToInt(lengthChars);
+        const data = str.substring(3, dataLength + 3);
         tags.push({
-            'type': type,
+            type,
             'length_chars': lengthChars,
             'length': dataLength,
-            'data': data
+            data
         });
         str = str.substring(3 + dataLength, str.length);
     }
@@ -277,87 +277,89 @@ function decodeTag(type, length, data, prefix) {
         case 'p':
             if (length !== 52) break; // A reader MUST skip over a 'p' field that does not have data_length 52
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'payment_hash',
                 'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case 's':
             if (length !== 52) break; // A reader MUST skip over a 's' field that does not have data_length 52
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'payment_secret',
                 'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case 'd':
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'description',
                 'value': bech32ToUTF8String(data)
             };
         case 'n':
             if (length !== 53) break; // A reader MUST skip over a 'n' field that does not have data_length 53
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'payee_public_key',
                 'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case 'h':
             if (length !== 52) break; // A reader MUST skip over a 'h' field that does not have data_length 52
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'description_hash',
                 'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case 'x':
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'expiry',
                 'value': bech32ToInt(data)
             };
         case 'c':
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'min_final_cltv_expiry_delta',
                 'value': bech32ToInt(data)
             };
-        case 'f':
-            let version = bech32ToFiveBitArray(data.charAt(0))[0];
-            if (version < 0 || version > 18) break; // a reader MUST skip over an f field with unknown version.
+        case 'f': {
+            const version = bech32ToFiveBitArray(data.charAt(0))[0];
+            // A reader MUST skip over an f field with unknown version.
+            if (version < 0 || version > 18) break;
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'fallback_address',
                 'value': {
-                    'version': version,
+                    version,
                     'fallback_address': fallbackAddress(version,
                         bech32ToFiveBitArray(data.substring(1, data.length)), prefix)
                 }
             };
+        }
         case 'r':
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'routing_information',
                 'value': decodeRoutingInformation(data)
             };
         case 'm':
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'payment_metadata',
                 'value': byteArrayToHexString(fiveBitArrayTo8BitArray(bech32ToFiveBitArray(data)))
             };
         case '9':
             return {
-                'type': type,
-                'length': length,
+                type,
+                length,
                 'description': 'feature_bits',
                 'value': bech32ToBinaryString(bech32ToFiveBitArray(data))
             };
@@ -369,8 +371,8 @@ function decodeTag(type, length, data, prefix) {
 
 function verify_checksum(hrp, data) {
     hrp = expand(hrp);
-    let all = hrp.concat(data);
-    let bool = polymod(all);
+    const all = hrp.concat(data);
+    const bool = polymod(all);
     return bool === 1;
 }
 
@@ -390,7 +392,7 @@ function bech32ToInt(str) {
 function fiveBitArrayTo8BitArray(int5Array, includeOverflow) {
     let count = 0;
     let buffer = 0;
-    let byteArray = [];
+    const byteArray = [];
     int5Array.forEach((value) => {
         buffer = (buffer << 5) + value;
         count += 5;
@@ -406,19 +408,19 @@ function fiveBitArrayTo8BitArray(int5Array, includeOverflow) {
 }
 
 function bech32ToUTF8String(str) {
-    let int5Array = bech32ToFiveBitArray(str);
-    let byteArray = fiveBitArrayTo8BitArray(int5Array);
+    const int5Array = bech32ToFiveBitArray(str);
+    const byteArray = fiveBitArrayTo8BitArray(int5Array);
 
     let utf8String = '';
     for (let i = 0; i < byteArray.length; i++) {
-        utf8String += '%' + ('0' + byteArray[i].toString(16)).slice(-2);
+        utf8String += `%${(`0${byteArray[i].toString(16)}`).slice(-2)}`;
     }
     return decodeURIComponent(utf8String);
 }
 
 function bech32ToBinaryString(byteArray) {
-    return Array.prototype.map.call(byteArray, function (byte) {
-        return ('000000' + byte.toString(2)).slice(-5);
+    return Array.prototype.map.call(byteArray, (byte) => {
+        return (`000000${byte.toString(2)}`).slice(-5);
     }).join('');
 }
 

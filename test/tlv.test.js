@@ -1,4 +1,8 @@
 // BigSize and TLV stream tests over BOLT 1 Appendix A and the BOLT 12 offer vectors.
+//
+// Hex literals below are split at the boundary between a BigSize prefix and its value, or
+// between one tlv record and the next.
+/* eslint-disable no-useless-concat */
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert');

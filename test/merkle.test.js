@@ -21,7 +21,7 @@ const bytes = string => lndecode.hexStringToByteArray(string);
 function keyed(entry, pattern) {
     for (const [key, value] of Object.entries(entry)) {
         const match = key.match(pattern);
-        if (match) return { argument: match[1], value: value };
+        if (match) return { argument: match[1], value };
     }
     return undefined;
 }
@@ -183,7 +183,7 @@ describe('signature hash', () => {
     });
 
     test('the tag is "lightning" then the message name then the field name', () => {
-        assert.strictEqual(VECTOR.signature_tag, 'lightning' + VECTOR.tlv + 'signature');
+        assert.strictEqual(VECTOR.signature_tag, `lightning${VECTOR.tlv}signature`);
     });
 
     test('H(signature_tag, merkle) matches', () => {

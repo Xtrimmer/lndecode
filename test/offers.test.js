@@ -198,7 +198,7 @@ describe('offer vector coverage', () => {
             try {
                 lndecode.decodeOffer(v.bolt12);
                 accepted.push(v.description);
-            } catch (e) { /* expected */ }
+            } catch { /* expected */ }
         }
         assert.deepStrictEqual(accepted, [], 'every invalid vector should be rejected');
 

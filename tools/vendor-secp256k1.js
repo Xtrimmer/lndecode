@@ -35,7 +35,7 @@ globalThis.secp256k1 = {
         throw new Error(`expected 2 export statements upstream, found ${exportCount}`);
     }
 
-    let body = upstream
+    const body = upstream
         .replace(/^export const /gm, 'const ')
         .replace(/^export \{[^}]*\};\s*$/gm, '');
 
