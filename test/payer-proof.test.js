@@ -36,10 +36,10 @@ describe('tree shape agrees with the full-tree builder', () => {
     for (let count = 1; count <= 20; count++) {
         test(`${count} leaf/leaves`, () => {
             const tlvs = [];
-            for (let i = 0; i < count; i++) tlvs.push(bytes('01020' + (i % 10) + '0' + (i % 10)));
+            for (let i = 0; i < count; i++) tlvs.push(bytes(`01020${i % 10}0${i % 10}`));
             const nodes = tlvs.map(tlv => lndecode.leafNode(tlv, tlvs[0]));
             assert.strictEqual(
-                hex(lndecode.reconstructRoot(nodes.map(hash => ({ hash: hash })), [])),
+                hex(lndecode.reconstructRoot(nodes.map(hash => ({ hash })), [])),
                 hex(lndecode.merkleRoot(tlvs)));
         });
     }

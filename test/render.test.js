@@ -55,7 +55,7 @@ describe('dispatch', () => {
         // A truncated body still reaches its decoder, so the error names a field or the
         // stream rather than the prefix.
         for (const prefix of ['lno', 'lnr', 'lnp']) {
-            assert.throws(() => lndecode.decodeRequest(prefix + '1qqq'),
+            assert.throws(() => lndecode.decodeRequest(`${prefix}1qqq`),
                 error => !/unknown prefix|not yet supported/i.test(String(error.message)),
                 prefix);
         }
@@ -243,9 +243,9 @@ describe('raw data breakdown', () => {
             const offer = lndecode.decodeOffer(v.bolt12);
             const bigsize = n => {
                 if (n < 0xfd) return n.toString(16).padStart(2, '0');
-                if (n < 0x10000) return 'fd' + n.toString(16).padStart(4, '0');
-                if (n < 0x100000000) return 'fe' + n.toString(16).padStart(8, '0');
-                return 'ff' + n.toString(16).padStart(16, '0');
+                if (n < 0x10000) return `fd${n.toString(16).padStart(4, '0')}`;
+                if (n < 0x100000000) return `fe${n.toString(16).padStart(8, '0')}`;
+                return `ff${n.toString(16).padStart(16, '0')}`;
             };
             const fromRecords = offer.raw_records
                 .map(record => bigsize(record.type) + bigsize(record.length) + record.hex)
@@ -449,11 +449,11 @@ describe('payer proof model', () => {
 
 describe('bolt12 breakdowns reconstruct their stream', () => {
     function reassemble(section, prefix) {
-        let out = prefix + '1';
+        let out = `${prefix}1`;
         for (const row of section.rows) {
             if (row.label === 'prefix' || row.label === 'separator') continue;
             const byLabel = new Map(Array.from(row.sub, s => [s.label, s.value]));
-            out += byLabel.get('type') + ':' + byLabel.get('length') + ':' + byLabel.get('value') + ' ';
+            out += `${byLabel.get('type')}:${byLabel.get('length')}:${byLabel.get('value')} `;
         }
         return out;
     }

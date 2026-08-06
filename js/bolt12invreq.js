@@ -33,35 +33,34 @@ const INVREQ_FIELDS = new Map([
 
 // name and domain are each length-prefixed by one byte.
 function decodeBip353Name(bytes) {
-    let reader = byteReader(bytes);
-    let name = bytesToUtf8String(reader.readBytes(reader.readByte('bip 353 name length'),
+    const reader = byteReader(bytes);
+    const name = bytesToUtf8String(reader.readBytes(reader.readByte('bip 353 name length'),
         'bip 353 name'));
-    let domain = bytesToUtf8String(reader.readBytes(reader.readByte('bip 353 domain length'),
+    const domain = bytesToUtf8String(reader.readBytes(reader.readByte('bip 353 domain length'),
         'bip 353 domain'));
     reader.requireExhausted('invreq_bip_353_name');
-    return { name: name, domain: domain };
+    return { name, domain };
 }
 
 function requireInvreqTypeRanges(records) {
     for (const record of records) {
         if (isSignatureType(record.type)) continue;
-        let inRange = INVREQ_TYPE_RANGES.some(range =>
+        const inRange = INVREQ_TYPE_RANGES.some(range =>
             record.type >= range[0] && record.type <= range[1]);
         if (!inRange) {
-            throw new Error('Malformed request: tlv type ' + record.type
-                + ' is outside the ranges an invoice request may use');
+            throw new Error(`Malformed request: tlv type ${record.type} is outside the ranges an invoice request may use`);
         }
     }
 }
 
 // Throws on an unknown even bit. An unknown odd bit is ignored.
 function validateInvreqFeatures(hex) {
-    let bytes = hexStringToByteArray(hex);
+    const bytes = hexStringToByteArray(hex);
     for (let bit = 0; bit < bytes.length * 8; bit++) {
-        let isSet = (bytes[bytes.length - 1 - (bit >> 3)] >> (bit % 8)) & 1;
+        const isSet = (bytes[bytes.length - 1 - (bit >> 3)] >> (bit % 8)) & 1;
         if (!isSet) continue;
         if (bit % 2 === 0 && !KNOWN_INVREQ_FEATURE_BITS.has(bit)) {
-            throw new Error('Malformed request: unknown even invoice request feature bit ' + bit);
+            throw new Error(`Malformed request: unknown even invoice request feature bit ${bit}`);
         }
     }
 }
@@ -69,8 +68,7 @@ function validateInvreqFeatures(hex) {
 function requireBip353Characters(value) {
     for (const [part, text] of [['name', value.name], ['domain', value.domain]]) {
         if (!BIP_353_ALLOWED.test(text)) {
-            throw new Error('Malformed request: invreq_bip_353_name ' + part
-                + ' contains a disallowed character');
+            throw new Error(`Malformed request: invreq_bip_353_name ${part} contains a disallowed character`);
         }
     }
 }
@@ -78,9 +76,9 @@ function requireBip353Characters(value) {
 // Applies the invoice request rules that a decoder can check without knowing the offer it
 // responds to, which chains the reader supports, or how it arrived.
 function validateInvoiceRequest(fields) {
-    let present = name => fields.some(field => field.name === name);
-    let valueOf = name => {
-        let field = fields.find(entry => entry.name === name);
+    const present = name => fields.some(field => field.name === name);
+    const valueOf = name => {
+        const field = fields.find(entry => entry.name === name);
         return field === undefined ? undefined : field.value;
     };
 
@@ -91,28 +89,27 @@ function validateInvoiceRequest(fields) {
         throw new Error('Malformed request: an invoice request requires invreq_payer_id');
     }
 
-    let features = valueOf('invreq_features');
+    const features = valueOf('invreq_features');
     if (features !== undefined) {
         validateInvreqFeatures(features);
     }
 
-    let bip353 = valueOf('invreq_bip_353_name');
+    const bip353 = valueOf('invreq_bip_353_name');
     if (bip353 !== undefined) {
         requireBip353Characters(bip353);
     }
 
     // The quantity and amount rules only apply to a request answering an offer, since
     // without one there are no offer fields to check against.
-    let respondsToOffer = present('offer_issuer_id') || present('offer_paths');
-    let quantityMax = valueOf('offer_quantity_max');
-    let quantity = valueOf('invreq_quantity');
-    let amount = valueOf('invreq_amount');
+    const respondsToOffer = present('offer_issuer_id') || present('offer_paths');
+    const quantityMax = valueOf('offer_quantity_max');
+    const quantity = valueOf('invreq_quantity');
+    const amount = valueOf('invreq_amount');
 
     if (!respondsToOffer) {
         for (const name of ['offer_chains', 'offer_features', 'offer_quantity_max']) {
             if (present(name)) {
-                throw new Error('Malformed request: ' + name
-                    + ' requires offer_issuer_id or offer_paths');
+                throw new Error(`Malformed request: ${name} requires offer_issuer_id or offer_paths`);
             }
         }
         if (amount === undefined) {
@@ -130,40 +127,38 @@ function validateInvoiceRequest(fields) {
             throw new Error('Malformed request: offer_quantity_max requires invreq_quantity');
         }
         if (quantityMax !== 0n && (quantity === 0n || quantity > quantityMax)) {
-            throw new Error('Malformed request: invreq_quantity must be between 1 and '
-                + quantityMax);
+            throw new Error(`Malformed request: invreq_quantity must be between 1 and ${quantityMax}`);
         }
     }
 
-    let offerAmount = valueOf('offer_amount');
+    const offerAmount = valueOf('offer_amount');
     if (offerAmount === undefined && amount === undefined) {
         throw new Error('Malformed request: invreq_amount is required when the offer has no amount');
     }
     // The expected amount is only computable when the offer amount is already in the
     // payable unit, which is to say when no currency conversion is involved.
     if (offerAmount !== undefined && amount !== undefined && !present('offer_currency')) {
-        let expected = offerAmount * (quantity === undefined ? 1n : quantity);
+        const expected = offerAmount * (quantity === undefined ? 1n : quantity);
         if (amount < expected) {
-            throw new Error('Malformed request: invreq_amount ' + amount
-                + ' is less than the expected ' + expected);
+            throw new Error(`Malformed request: invreq_amount ${amount} is less than the expected ${expected}`);
         }
     }
 }
 
 function decodeInvoiceRequest(request) {
-    let split = bolt12ToBytes(request);
+    const split = bolt12ToBytes(request);
     if (split.prefix !== 'lnr') {
-        throw new Error('Malformed request: expected an lnr invoice request, got ' + split.prefix);
+        throw new Error(`Malformed request: expected an lnr invoice request, got ${split.prefix}`);
     }
 
-    let records = parseTlvStream(split.bytes);
+    const records = parseTlvStream(split.bytes);
     requireInvreqTypeRanges(records);
     requireUnderstoodTypes(records, new Set(INVREQ_FIELDS.keys()));
 
     // An unknown odd type reaches here and is carried through as raw bytes only.
-    let fields = [];
+    const fields = [];
     for (const record of records) {
-        let known = INVREQ_FIELDS.get(record.type);
+        const known = INVREQ_FIELDS.get(record.type);
         if (known === undefined) continue;
         fields.push({
             type: Number(record.type),
@@ -175,19 +170,19 @@ function decodeInvoiceRequest(request) {
     }
     validateInvoiceRequest(fields);
 
-    let byType = new Map(Array.from(records).map(record => [record.type, record]));
+    const byType = new Map(Array.from(records).map(record => [record.type, record]));
     if (!byType.has(240n)) {
         throw new Error('Malformed request: an invoice request requires a signature');
     }
-    let payerId = byType.get(88n).value;
+    const payerId = byType.get(88n).value;
     if (!verifySignedStream('invoice_request', records, byType.get(240n).value, payerId)) {
         throw new Error('Malformed request: signature does not verify against invreq_payer_id');
     }
 
-    let signed = signedRecords(records);
+    const signed = signedRecords(records);
     return {
         prefix: split.prefix,
-        fields: fields,
+        fields,
         merkle_root: byteArrayToHexString(merkleRoot(signed.map(record => record.tlv))),
         raw_records: Array.from(records).map(record => ({
             type: Number(record.type),

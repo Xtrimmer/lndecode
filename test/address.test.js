@@ -73,7 +73,7 @@ describe('description hash', () => {
     });
 
     test('an altered description does not match', () => {
-        assert.strictEqual(lndecode.descriptionMatchesHash(invoice(HASHED), DESCRIPTION + '!'), false);
+        assert.strictEqual(lndecode.descriptionMatchesHash(invoice(HASHED), `${DESCRIPTION}!`), false);
         assert.strictEqual(lndecode.descriptionMatchesHash(invoice(HASHED), ''), false);
     });
 

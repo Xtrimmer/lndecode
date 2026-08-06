@@ -66,7 +66,7 @@ describe('bolt12 has no checksum', () => {
         try {
             b = lndecode.byteArrayToHexString(lndecode.bolt12ToBytes(truncated).bytes);
         } catch (e) {
-            b = 'rejected: ' + e.message;
+            b = `rejected: ${e.message}`;
         }
         assert.notStrictEqual(a, b);
     });

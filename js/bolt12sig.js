@@ -18,8 +18,7 @@ function xOnlyPoint(point) {
 
 function verifyBolt12Signature(signature, sighash, point) {
     if (signature.length !== BOLT12_SIGNATURE_LENGTH) {
-        throw new Error('Malformed request: signature must be '
-            + BOLT12_SIGNATURE_LENGTH + ' bytes, got ' + signature.length);
+        throw new Error(`Malformed request: signature must be ${BOLT12_SIGNATURE_LENGTH} bytes, got ${signature.length}`);
     }
     return secp256k1.schnorr.verify(
         new Uint8Array(signature),
@@ -35,11 +34,11 @@ function signedRecords(records) {
 // Rebuilds the merkle root over every record except the signature, tags it with the
 // message name, and checks the signature against the given point.
 function verifySignedStream(messageName, records, signature, point) {
-    let signed = signedRecords(records);
+    const signed = signedRecords(records);
     if (signed.length === 0) {
         throw new Error('Malformed request: nothing to verify the signature over');
     }
-    let root = merkleRoot(signed.map(record => record.tlv));
-    let sighash = signatureHash(messageName, 'signature', root);
+    const root = merkleRoot(signed.map(record => record.tlv));
+    const sighash = signatureHash(messageName, 'signature', root);
     return verifyBolt12Signature(signature, sighash, point);
 }

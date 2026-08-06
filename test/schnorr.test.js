@@ -67,11 +67,11 @@ describe('x-only points', () => {
     const X = '24653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c';
 
     test('an even-Y compressed point drops its prefix', () => {
-        assert.strictEqual(hex(lndecode.xOnlyPoint(bytes('02' + X))), X);
+        assert.strictEqual(hex(lndecode.xOnlyPoint(bytes(`02${X}`))), X);
     });
 
     test('an odd-Y compressed point drops its prefix too', () => {
-        assert.strictEqual(hex(lndecode.xOnlyPoint(bytes('03' + X))), X);
+        assert.strictEqual(hex(lndecode.xOnlyPoint(bytes(`03${X}`))), X);
     });
 
     test('a bare x coordinate passes through', () => {
@@ -79,9 +79,9 @@ describe('x-only points', () => {
     });
 
     for (const [label, input] of [
-        ['an uncompressed point', '04' + X + X],
-        ['a wrong prefix', '05' + X],
-        ['too short', '02' + X.slice(0, 60)],
+        ['an uncompressed point', `04${X}${X}`],
+        ['a wrong prefix', `05${X}`],
+        ['too short', `02${X.slice(0, 60)}`],
         ['empty', '']
     ]) {
         test(`${label} is an error`, () => {
