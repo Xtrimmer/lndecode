@@ -5,21 +5,67 @@ textarea.addEventListener('input', updatePage);
 
 function updatePage() {
     const div = document.getElementById('response');
+    const request = document.getElementById('request-string').value.trim();
     try {
-        const request = document.getElementById('request-string').value.trim();
         const model = decodeRequest(request);
         div.textContent = '';
         div.appendChild(renderModel(model));
         div.classList.remove('hidden');
         div.classList.remove('alert');
         div.classList.remove('alert-danger');
+        reportDecode(request, 'decode_success', { request_kind: model.kind });
     } catch (e) {
         div.innerHTML = `<strong>Uh-Oh!</strong> Something is not quite right with this request.<br>${e.toString()}`;
         div.classList.remove('hidden');
         div.classList.remove('alert-success');
         div.classList.add('alert');
         div.classList.add('alert-danger');
+        reportDecode(request, 'decode_error', {
+            request_kind: analyticsPrefix(request),
+            error_stage: errorStage(String(e.message ?? e))
+        });
     }
+}
+
+// Decode outcomes, reported to Google Analytics. Every parameter value comes from a fixed
+// vocabulary, so no part of the request string leaves the page.
+
+const ANALYTICS_SETTLE_MS = 1500;
+
+const ANALYTICS_PREFIXES = new Set([
+    'lnbc', 'lntb', 'lnbcrt', 'lnsb', 'lntbs', 'lno', 'lnr', 'lnp'
+]);
+
+const ERROR_STAGES = [
+    ['signature', /signature|does not verify|not recoverable|secp256k1 curve|signing key|proof_preimage|expected 0x02/],
+    ['format', /bech32|mixed case|separator|checksum|padding|UTF-8|unknown prefix|human-readable prefix|too short/],
+    ['structure', /tlv|truncated|minimally encoded|leading zero|trailing bytes|merkle|32-byte hashes|proof_missing_hashes|proof_leaf_hashes|proof_omitted_tlvs/]
+];
+
+let analyticsTimer = null;
+
+// The leading run of letters, or 'unknown' when it is not a prefix this page decodes.
+function analyticsPrefix(request) {
+    const [prefix] = request.replace(/[+\s]/g, '').toLowerCase().match(/^[a-z]*/);
+    return ANALYTICS_PREFIXES.has(prefix) ? prefix : 'unknown';
+}
+
+// Sorts a decode failure into one of five buckets.
+function errorStage(message) {
+    if (message.startsWith('Invalid input:')) return 'input';
+    for (const [stage, pattern] of ERROR_STAGES) {
+        if (pattern.test(message)) return stage;
+    }
+    return 'validation';
+}
+
+// Fires one event per typing burst, and nothing for an empty box or a blocked tag.
+function reportDecode(request, name, params) {
+    window.clearTimeout(analyticsTimer);
+    if (request === '') return;
+    analyticsTimer = window.setTimeout(() => {
+        if (typeof window.gtag === 'function') window.gtag('event', name, params);
+    }, ANALYTICS_SETTLE_MS);
 }
 
 function createStandardRow(label, value) {
