@@ -1,0 +1,9 @@
+{
+    // Static assets only -- there is no Worker script, so "main" is omitted and
+    // Cloudflare serves public/ directly.
+    "name": "lndecode",
+    "compatibility_date": "2026-08-16",
+    "assets": {
+        "directory": "./public/"
+    }
+}
