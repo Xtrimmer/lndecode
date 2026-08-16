@@ -9,7 +9,7 @@ const SOURCES = ['utils.js', 'bech32.js', 'bytes.js', 'sha256.js', 'merkle.js',
     'bolt12proof.js', 'bolt12invreq.js', 'dispatch.js'];
 
 function load() {
-    const dir = path.join(__dirname, '..', 'js');
+    const dir = path.join(__dirname, '..', 'public', 'js');
     const code = SOURCES
         .map(file => `//--- ${file} ---\n${fs.readFileSync(path.join(dir, file), 'utf8')}`)
         .join('\n');

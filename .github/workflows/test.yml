@@ -35,4 +35,4 @@ jobs:
       - name: Re-vendor secp256k1 and check it is unchanged
         run: |
           npm run vendor
-          git diff --exit-code js/vendor/secp256k1.js
+          git diff --exit-code public/js/vendor/secp256k1.js

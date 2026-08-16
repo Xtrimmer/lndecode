@@ -1,6 +1,6 @@
-// Every top-level name in js/ lands on the global object, so eslint cannot tell an unused
-// one from the cross-file interface. This checks the whole project at once: a name must be
-// used by another source file, by index.html, or by a test.
+// Every top-level name in public/js/ lands on the global object, so eslint cannot tell an
+// unused one from the cross-file interface. This checks the whole project at once: a name
+// must be used by another source file, by index.html, or by a test.
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
@@ -10,7 +10,8 @@ const path = require('node:path');
 const { SOURCES } = require('./load.js');
 
 const ROOT = path.join(__dirname, '..');
-const JS_DIR = path.join(ROOT, 'js');
+const PUBLIC_DIR = path.join(ROOT, 'public');
+const JS_DIR = path.join(PUBLIC_DIR, 'js');
 
 const SOURCE_FILES = fs.readdirSync(JS_DIR)
     .filter(name => name.endsWith('.js'))
@@ -44,15 +45,15 @@ const OTHER_SOURCES = new Map(SOURCE_FILES
 
 describe('the source list', () => {
     test('load.js covers every file index.html loads', () => {
-        const html = read(path.join(ROOT, 'index.html'));
+        const html = read(path.join(PUBLIC_DIR, 'index.html'));
         const loaded = Array.from(html.matchAll(/<script src="js\/([^"]+)"><\/script>/g),
             match => match[1]);
         // render.js touches the DOM, so the test loader omits it.
         assert.deepStrictEqual(SOURCES, loaded.filter(name => name !== 'render.js'));
     });
 
-    test('every file in js/ is loaded by the page', () => {
-        const html = read(path.join(ROOT, 'index.html'));
+    test('every file in public/js/ is loaded by the page', () => {
+        const html = read(path.join(PUBLIC_DIR, 'index.html'));
         for (const name of SOURCE_FILES) {
             if (name === 'vendor') continue;
             assert.ok(html.includes(`js/${name}`), `${name} is not loaded by index.html`);
@@ -61,7 +62,7 @@ describe('the source list', () => {
 });
 
 describe('no dead top-level code', () => {
-    const html = read(path.join(ROOT, 'index.html'));
+    const html = read(path.join(PUBLIC_DIR, 'index.html'));
     const testSource = TEST_FILES.map(read).join('\n');
 
     for (const [file, source] of OTHER_SOURCES) {
