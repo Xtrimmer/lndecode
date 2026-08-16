@@ -1,8 +1,11 @@
 # lndecoder
 
 Decodes Lightning Network payment requests and offers in the browser. No build step, no
-server, no dependencies at runtime — open `index.html` and it works, including over
+server, no dependencies at runtime — open `public/index.html` and it works, including over
 `file://`.
+
+Everything the site serves lives under `public/`; deploy that directory as the web root.
+`test/`, `tools/` and the repository configuration are development-only.
 
 Go to https://lndecode.com/ and paste a request string into the text box.
 
@@ -67,7 +70,7 @@ https://lndecode.com/?invoice=lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zy
 ```
 npm test        # runs every suite against the published spec vectors
 npm run vectors # re-extracts vectors from lightning/bolts; a clean diff means current
-npm run vendor  # regenerates js/vendor/secp256k1.js from @noble/secp256k1
+npm run vendor  # regenerates public/js/vendor/secp256k1.js from @noble/secp256k1
 ```
 
 Test vectors are extracted from the [lightning/bolts](https://github.com/lightning/bolts)

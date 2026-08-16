@@ -12,7 +12,7 @@ const crypto = require('crypto');
 
 const VERSION = '3.1.0';
 const SOURCE = `https://cdn.jsdelivr.net/npm/@noble/secp256k1@${VERSION}/index.js`;
-const OUT = path.join(__dirname, '..', 'js', 'vendor', 'secp256k1.js');
+const OUT = path.join(__dirname, '..', 'public', 'js', 'vendor', 'secp256k1.js');
 
 const SHIM = `
 globalThis.secp256k1 = {
@@ -49,6 +49,6 @@ globalThis.secp256k1 = {
         `// Regenerate: npm run vendor\n\n`;
 
     fs.writeFileSync(OUT, header + body + SHIM);
-    console.log(`  wrote js/vendor/secp256k1.js (${(header + body + SHIM).length} bytes)`);
+    console.log(`  wrote public/js/vendor/secp256k1.js (${(header + body + SHIM).length} bytes)`);
     console.log(`  upstream sha256 ${digest}`);
 })();

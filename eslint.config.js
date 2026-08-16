@@ -39,7 +39,7 @@ const STYLE = {
 
 module.exports = [
     {
-        ignores: ['js/vendor/**', 'node_modules/**', 'test/vectors.js']
+        ignores: ['public/js/vendor/**', 'node_modules/**', 'test/vectors.js']
     },
     {
         linterOptions: {
@@ -50,7 +50,7 @@ module.exports = [
     js.configs.recommended,
     {
         // The page sources: plain scripts, no module system.
-        files: ['js/**/*.js'],
+        files: ['public/js/**/*.js'],
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: 'script',
